@@ -1,0 +1,42 @@
+[versions]
+javaVersion = "26"
+jmhPluginVersion = "0.7.4"
+jmhVersion = "1.37"
+junitJupiterVersion = "6.1.3"
+junitPlatformVersion = "6.1.3"
+kotestVersion = "6.2.6"
+kotlinVersion = "2.4.21"
+kotlinxBenchmarkVersion = "0.5.0"
+koverVersion = "0.9.11"
+kspVersion = "2.3.13"
+versionCatalogPluginVersion = "1.1.2"
+
+[libraries]
+jmh-core = { module = "org.openjdk.jmh:jmh-core", version.ref = "jmhVersion" }
+junit-jupiter-engine = { module = "org.junit.jupiter:junit-jupiter-engine", version.ref = "junitJupiterVersion" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junitPlatformVersion" }
+kotlin-gradle-allopen = { module = "org.jetbrains.kotlin:kotlin-allopen", version.ref = "kotlinVersion" }
+kotlin-gradle-benchmark = { module = "org.jetbrains.kotlinx.benchmark:org.jetbrains.kotlinx.benchmark.gradle.plugin", version.ref = "kotlinxBenchmarkVersion" }
+kotlin-gradle-kover = { module = "org.jetbrains.kotlinx:kover-gradle-plugin", version.ref = "koverVersion" }
+kotlin-gradle-main = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlinVersion" }
+kotlin-kotest-assertionsCore = { module = "io.kotest:kotest-assertions-core", version.ref = "kotestVersion" }
+kotlin-kotest-assertionsJvm = { module = "io.kotest:kotest-assertions-core-jvm", version.ref = "kotestVersion" }
+kotlin-kotest-frameworkEngine = { module = "io.kotest:kotest-framework-engine", version.ref = "kotestVersion" }
+kotlin-kotest-junit5Runner = { module = "io.kotest:kotest-runner-junit5-jvm", version.ref = "kotestVersion" }
+kotlin-test-junit5 = { module = "org.jetbrains.kotlin:kotlin-test-junit5", version.ref = "kotlinVersion" }
+kotlin-x-benchmark = { module = "org.jetbrains.kotlinx:kotlinx-benchmark-runtime", version.ref = "kotlinxBenchmarkVersion" }
+ksp-aaEmbeddable = { module = "com.google.devtools.ksp:symbol-processing-aa-embeddable", version.ref = "kspVersion" }
+ksp-api = { module = "com.google.devtools.ksp:symbol-processing-api", version.ref = "kspVersion" }
+ksp-commonDeps = { module = "com.google.devtools.ksp:symbol-processing-common-deps", version.ref = "kspVersion" }
+
+[plugins]
+internalBenchmark = { id = "com.varlanv.gradle.internal-benchmark-convention-plugin" }
+internalConvention = { id = "com.varlanv.gradle.internal-gradle-convention-plugin" }
+internalMultiplatform = { id = "com.varlanv.gradle.internal-multiplatform-convention-plugin" }
+jmh = { id = "me.champeau.jmh", version.ref = "jmhPluginVersion" }
+kotest = { id = "io.kotest", version.ref = "kotestVersion" }
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlinVersion" }
+kotlin-kover = { id = "org.jetbrains.kotlinx.kover", version.ref = "koverVersion" }
+kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlinVersion" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "kspVersion" }
+versionCatalogPlugin = { id = "nl.littlerobots.version-catalog-update", version.ref = "versionCatalogPluginVersion" }
