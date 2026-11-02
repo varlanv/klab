@@ -39,6 +39,7 @@ include(
         "libs:lang",
         "libs:graphics:renderer",
         "libs:graphics:vulkan",
+        "libs:graphics:vulkan-ffi-generated",
         "testing:common-test",
     )
 )

@@ -11,5 +11,10 @@ kotlin {
                 implementation(projects.libs.lang)
             }
         }
+        jvmMain {
+            dependencies {
+                implementation(projects.libs.graphics.vulkanFfiGenerated)
+            }
+        }
     }
 }
