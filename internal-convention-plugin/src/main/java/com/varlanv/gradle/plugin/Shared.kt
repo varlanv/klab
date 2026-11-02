@@ -161,7 +161,8 @@ internal class SharedState(val project: Project) {
                         jvmTarget.set(JvmTarget.fromTarget(javaVersion))
                         freeCompilerArgs.addAll(
                             "-Xjsr305=strict",
-                            "-Xadd-modules=jdk.incubator.vector"
+                            "-Xadd-modules=jdk.incubator.vector",
+                            "-Xexpect-actual-classes",
                         )
                     }
                 }

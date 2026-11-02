@@ -3,7 +3,7 @@ package com.varlanv.klab.graphics.vulkan
 import java.lang.foreign.*
 import java.lang.invoke.MethodHandle
 
-val linker = Linker.nativeLinker()
+val linker: Linker = Linker.nativeLinker()
 
 class Vk {
 
@@ -33,7 +33,3 @@ fun vkGetInstanceProcAddr(): MethodHandle {
         )
     )
 }
-
-//fun main() {
-//    Vk.load()
-//}
