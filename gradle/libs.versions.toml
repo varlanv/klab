@@ -34,11 +34,9 @@ proguard-gradle = { module = "com.guardsquare:proguard-gradle", version.ref = "p
 [plugins]
 internalBenchmark = { id = "com.varlanv.gradle.internal-benchmark-convention-plugin" }
 internalConvention = { id = "com.varlanv.gradle.internal-gradle-convention-plugin" }
-internalMultiplatform = { id = "com.varlanv.gradle.internal-multiplatform-convention-plugin" }
 jmh = { id = "me.champeau.jmh", version.ref = "jmhPluginVersion" }
 kotest = { id = "io.kotest", version.ref = "kotestVersion" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlinVersion" }
 kotlin-kover = { id = "org.jetbrains.kotlinx.kover", version.ref = "koverVersion" }
-kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlinVersion" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "kspVersion" }
 versionCatalogPlugin = { id = "nl.littlerobots.version-catalog-update", version.ref = "versionCatalogPluginVersion" }

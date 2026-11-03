@@ -1,15 +1,7 @@
 plugins {
-    alias(libs.plugins.internalMultiplatform)
+    alias(libs.plugins.internalConvention)
 }
 
-kotlin {
-    internalConvention.configureMainTargets(this)
-
-    sourceSets {
-        commonMain {
-            dependencies {
-                implementation(projects.libs.lang)
-            }
-        }
-    }
+dependencies {
+    implementation(projects.libs.lang)
 }

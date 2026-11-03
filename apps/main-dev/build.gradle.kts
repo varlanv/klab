@@ -1,5 +1,5 @@
 plugins {
-    alias(libs.plugins.internalMultiplatform)
+    alias(libs.plugins.internalConvention)
 }
 
 internalConvention.mainAppCommonConfiguration(project, "debug")

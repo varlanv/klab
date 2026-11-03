@@ -1,7 +1,3 @@
 plugins {
-    alias(libs.plugins.internalMultiplatform)
-}
-
-kotlin {
-    internalConvention.configureMainTargets(this)
+    alias(libs.plugins.internalConvention)
 }

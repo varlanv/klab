@@ -1,6 +1,5 @@
 plugins {
-    alias(libs.plugins.internalMultiplatform)
+    alias(libs.plugins.internalConvention)
 }
 
-internalConvention.configureMainTargets(kotlin)
-internalConvention.mainAppCommonDependencies(kotlin)
+internalConvention.mainAppCommonDependencies(project)

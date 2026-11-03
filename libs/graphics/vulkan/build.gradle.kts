@@ -1,20 +1,8 @@
 plugins {
-    alias(libs.plugins.internalMultiplatform)
+    alias(libs.plugins.internalConvention)
 }
 
-kotlin {
-    internalConvention.configureMainTargets(this)
-
-    sourceSets {
-        commonMain {
-            dependencies {
-                implementation(projects.libs.lang)
-            }
-        }
-        jvmMain {
-            dependencies {
-                implementation(projects.libs.graphics.vulkanFfiGenerated)
-            }
-        }
-    }
+dependencies {
+    implementation(projects.libs.lang)
+    implementation(projects.libs.graphics.vulkanFfiGenerated)
 }

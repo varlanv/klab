@@ -1,9 +1,5 @@
 plugins {
-    alias(libs.plugins.internalMultiplatform)
+    alias(libs.plugins.internalConvention)
 }
 
 description = "Generated Vulkan 1.1 bindings for Java FFI"
-
-kotlin {
-    jvm()
-}
