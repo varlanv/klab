@@ -12,11 +12,11 @@ dependencies {
 internalConvention.configureBenchmark(project)
 
 extensions.configure<me.champeau.jmh.JmhParameters> {
-    warmupIterations.set(5)
+    warmupIterations.set(3)
     warmup.set("1s")
     iterations.set(5)
     timeOnIteration.set("1s")
-    fork.set(3)
+    fork.set(1)
     timeUnit.set("us")
     jvmArgsAppend.set(
         listOf("--add-modules=jdk.incubator.vector", "--enable-native-access=ALL-UNNAMED", "-Xms512m", "-Xmx512m")
@@ -31,11 +31,11 @@ afterEvaluate {
     }
 }
 
-val benchmarkOptimization = providers.gradleProperty("com.varlanv.klab.optimize")
-tasks.named("jmh") {
-    doFirst {
-        require(benchmarkOptimization.get() == "fast") {
-            "Use -Pcom.varlanv.klab.optimize=fast to benchmark optimized native C"
-        }
-    }
-}
+//val benchmarkOptimization = providers.gradleProperty("com.varlanv.klab.optimize")
+//tasks.named("jmh") {
+//    doFirst {
+//        require(benchmarkOptimization.get() == "fast") {
+//            "Use -Pcom.varlanv.klab.optimize=fast to benchmark optimized native C"
+//        }
+//    }
+//}

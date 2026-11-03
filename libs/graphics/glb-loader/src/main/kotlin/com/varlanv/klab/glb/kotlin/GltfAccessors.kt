@@ -1,11 +1,29 @@
 package com.varlanv.klab.glb.kotlin
 
+import com.varlanv.klab.collections.Bytes
+import com.varlanv.klab.collections.MutBytes
+import com.varlanv.klab.collections.MutFloats
+import com.varlanv.klab.collections.MutInts
+import com.varlanv.klab.collections.MutShorts
 import com.varlanv.klab.intViewHandle
 import com.varlanv.klab.shortViewHandle
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
-fun KotlinGltf.copyFloatsTo(accessorIndex: Int, destination: FloatArray) {
+private const val MIN_VECTOR_INDEX_COUNT = 64
+private const val UNSIGNED_BYTE_MASK = 0xff
+private const val UNSIGNED_SHORT_MASK = 0xffff
+private const val UNSIGNED_INT_MASK = 0xffffffffL
+private const val SIGNED_BYTE_MAX = 127f
+private const val UNSIGNED_BYTE_MAX = 255f
+private const val SIGNED_SHORT_MAX = 32767f
+private const val UNSIGNED_SHORT_MAX = 65535f
+private const val MAT2_ROWS = 2
+private const val MAT3_ROWS = 3
+private const val MAT4_ROWS = 4
+private const val MISSING_ELEMENT_LOCATION = -1L
+
+fun KotlinGltf.copyFloatsTo(accessorIndex: Int, destination: MutFloats) {
     val accessor = accessors[accessorIndex]
     val components = componentCount(accessor.type)
     val total = Math.multiplyExact(accessor.count, components)
@@ -14,9 +32,10 @@ fun KotlinGltf.copyFloatsTo(accessorIndex: Int, destination: FloatArray) {
         val view = bufferViews[accessor.bufferView]
         val bytes = bufferSources[view.buffer]
         val start = bufferOffsets[view.buffer] + view.offset + accessor.offset
-        if (accessor.componentType == 5126 && accessor.stride == components * 4) {
-            ByteBuffer.wrap(bytes, start, total * 4).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer().get(destination, 0, total)
-        } else if (accessor.type <= 4 && accessor.stride == components * componentSize(accessor.componentType)) {
+        if (accessor.componentType == GLTF_COMPONENT_FLOAT && accessor.stride == components * Float.SIZE_BYTES) {
+            ByteBuffer.wrap(bytes, start, total * Float.SIZE_BYTES).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer()
+                .get(destination, 0, total)
+        } else if (accessor.type <= GLTF_TYPE_VEC4 && accessor.stride == components * componentSize(accessor.componentType)) {
             unpackPacked(bytes, start, total, accessor.componentType, accessor.normalized, destination)
         } else {
             var output = 0
@@ -24,7 +43,12 @@ fun KotlinGltf.copyFloatsTo(accessorIndex: Int, destination: FloatArray) {
             repeat(accessor.count) {
                 var component = 0
                 while (component < components) {
-                    destination[output++] = readFloat(bytes, element + componentOffset(accessor, component), accessor.componentType, accessor.normalized)
+                    destination[output++] = readFloat(
+                        bytes,
+                        element + componentOffset(accessor, component),
+                        accessor.componentType,
+                        accessor.normalized
+                    )
                     component++
                 }
                 element += accessor.stride
@@ -41,40 +65,56 @@ fun KotlinGltf.copyFloatsTo(accessorIndex: Int, destination: FloatArray) {
     val indexSize = componentSize(sparse.indicesComponentType)
     val size = elementSize(accessor.type, accessor.componentType)
     repeat(sparse.count) { patch ->
-        val output = readUnsigned(indexBytes, indexStart + patch * indexSize, sparse.indicesComponentType).toInt() * components
+        val output =
+            readUnsigned(indexBytes, indexStart + patch * indexSize, sparse.indicesComponentType).toInt() * components
         repeat(components) { component ->
-            destination[output + component] = readFloat(valueBytes, valueStart + patch * size + componentOffset(accessor, component), accessor.componentType, accessor.normalized)
+            destination[output + component] = readFloat(
+                valueBytes,
+                valueStart + patch * size + componentOffset(accessor, component),
+                accessor.componentType,
+                accessor.normalized
+            )
         }
     }
 }
 
-fun KotlinGltf.copyIndicesTo(accessorIndex: Int, destination: IntArray) {
+fun KotlinGltf.copyIndicesTo(accessorIndex: Int, destination: MutInts) {
     val accessor = accessors[accessorIndex]
-    require(accessor.type == 1 && (accessor.componentType == 5121 || accessor.componentType == 5123 || accessor.componentType == 5125)) { "Indices must be unsigned scalars" }
+    require(
+        accessor.type == GLTF_TYPE_SCALAR &&
+                (accessor.componentType == GLTF_COMPONENT_UNSIGNED_BYTE ||
+                        accessor.componentType == GLTF_COMPONENT_UNSIGNED_SHORT ||
+                        accessor.componentType == GLTF_COMPONENT_UNSIGNED_INT)
+    ) { "Indices must be unsigned scalars" }
     require(destination.size >= accessor.count) { "Output is too small" }
     check(accessor.sparse == null) { "Sparse index conversion is not supported by cgltf" }
     if (accessor.bufferView < 0) destination.fill(0, 0, accessor.count) else {
         val view = bufferViews[accessor.bufferView]
         val bytes = bufferSources[view.buffer]
         var offset = bufferOffsets[view.buffer] + view.offset + accessor.offset
-        if (vectorized && vectorAvailable && accessor.count >= 64) {
-            if (accessor.componentType == 5123 && accessor.stride == 2) {
+        if (accessor.count >= MIN_VECTOR_INDEX_COUNT) {
+            if (accessor.componentType == GLTF_COMPONENT_UNSIGNED_SHORT && accessor.stride == Short.SIZE_BYTES) {
                 GltfIndexDecoder.copyShorts(bytes, offset, accessor.count, destination)
                 return
             }
-            if (accessor.componentType == 5121 && accessor.stride == 1) {
+            if (accessor.componentType == GLTF_COMPONENT_UNSIGNED_BYTE && accessor.stride == Byte.SIZE_BYTES) {
                 GltfIndexDecoder.copyBytes(bytes, offset, accessor.count, destination)
                 return
             }
         }
         when (accessor.componentType) {
-            5121 -> repeat(accessor.count) { destination[it] = bytes[offset].toInt() and 255; offset += accessor.stride }
-            5123 -> repeat(accessor.count) {
-                destination[it] = (shortViewHandle.get(bytes, offset) as Short).toInt() and 65535
+            GLTF_COMPONENT_UNSIGNED_BYTE -> repeat(accessor.count) {
+                destination[it] = bytes[offset].toInt() and UNSIGNED_BYTE_MASK; offset += accessor.stride
+            }
+
+            GLTF_COMPONENT_UNSIGNED_SHORT -> repeat(accessor.count) {
+                destination[it] = (shortViewHandle.get(bytes, offset) as Short).toInt() and UNSIGNED_SHORT_MASK
                 offset += accessor.stride
             }
-            5125 -> if (accessor.stride == 4) {
-                ByteBuffer.wrap(bytes, offset, accessor.count * 4).order(ByteOrder.LITTLE_ENDIAN).asIntBuffer().get(destination, 0, accessor.count)
+
+            GLTF_COMPONENT_UNSIGNED_INT -> if (accessor.stride == Int.SIZE_BYTES) {
+                ByteBuffer.wrap(bytes, offset, accessor.count * Int.SIZE_BYTES).order(ByteOrder.LITTLE_ENDIAN).asIntBuffer()
+                    .get(destination, 0, accessor.count)
             } else repeat(accessor.count) {
                 destination[it] = intViewHandle.get(bytes, offset) as Int
                 offset += accessor.stride
@@ -83,60 +123,84 @@ fun KotlinGltf.copyIndicesTo(accessorIndex: Int, destination: IntArray) {
     }
 }
 
-fun KotlinGltf.copyIndicesTo(accessorIndex: Int, destination: ShortArray) {
+fun KotlinGltf.copyIndicesTo(accessorIndex: Int, destination: MutShorts) {
     val accessor = accessors[accessorIndex]
-    require(accessor.type == 1 && (accessor.componentType == 5121 || accessor.componentType == 5123))
+    require(
+        accessor.type == GLTF_TYPE_SCALAR &&
+                (accessor.componentType == GLTF_COMPONENT_UNSIGNED_BYTE ||
+                        accessor.componentType == GLTF_COMPONENT_UNSIGNED_SHORT)
+    )
     require(destination.size >= accessor.count)
     check(accessor.sparse == null)
-    if (accessor.bufferView < 0) { destination.fill(0, 0, accessor.count); return }
+    if (accessor.bufferView < 0) {
+        destination.fill(0, 0, accessor.count); return
+    }
     val view = bufferViews[accessor.bufferView]
     val bytes = bufferSources[view.buffer]
     var offset = bufferOffsets[view.buffer] + view.offset + accessor.offset
-    if (accessor.componentType == 5123 && accessor.stride == 2) {
-        ByteBuffer.wrap(bytes, offset, accessor.count * 2).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().get(destination, 0, accessor.count)
+    if (accessor.componentType == GLTF_COMPONENT_UNSIGNED_SHORT && accessor.stride == Short.SIZE_BYTES) {
+        ByteBuffer.wrap(bytes, offset, accessor.count * Short.SIZE_BYTES).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
+            .get(destination, 0, accessor.count)
     } else repeat(accessor.count) {
         destination[it] = readUnsigned(bytes, offset, accessor.componentType).toShort()
         offset += accessor.stride
     }
 }
 
-fun KotlinGltf.copyIndicesTo(accessorIndex: Int, destination: ByteArray) {
+fun KotlinGltf.copyIndicesTo(accessorIndex: Int, destination: MutBytes) {
     val accessor = accessors[accessorIndex]
-    require(accessor.type == 1 && accessor.componentType == 5121 && destination.size >= accessor.count)
+    require(
+        accessor.type == GLTF_TYPE_SCALAR && accessor.componentType == GLTF_COMPONENT_UNSIGNED_BYTE &&
+                destination.size >= accessor.count
+    )
     check(accessor.sparse == null)
-    if (accessor.bufferView < 0) { destination.fill(0, 0, accessor.count); return }
+    if (accessor.bufferView < 0) {
+        destination.fill(0, 0, accessor.count); return
+    }
     val view = bufferViews[accessor.bufferView]
     val bytes = bufferSources[view.buffer]
     var offset = bufferOffsets[view.buffer] + view.offset + accessor.offset
-    if (accessor.stride == 1) bytes.copyInto(destination, 0, offset, offset + accessor.count)
+    if (accessor.stride == Byte.SIZE_BYTES) bytes.copyInto(destination, 0, offset, offset + accessor.count)
     else repeat(accessor.count) { destination[it] = bytes[offset]; offset += accessor.stride }
 }
 
-fun KotlinGltf.readFloats(accessorIndex: Int, elementIndex: Int, destination: FloatArray) {
+fun KotlinGltf.readFloats(accessorIndex: Int, elementIndex: Int, destination: MutFloats) {
     val accessor = accessors[accessorIndex]
     require(elementIndex in 0..<accessor.count)
     val components = componentCount(accessor.type)
     require(destination.size >= components)
     val location = elementLocation(accessor, elementIndex)
-    val viewIndex = if (location < 0) -1 else (location ushr 32).toInt()
+    val viewIndex = if (location < 0) GLTF_MISSING_INDEX else (location ushr Int.SIZE_BITS).toInt()
     val offset = location.toInt()
     if (viewIndex < 0) destination.fill(0f, 0, components) else {
         val view = bufferViews[viewIndex]
         val bytes = bufferSources[view.buffer]
         val start = bufferOffsets[view.buffer] + view.offset + offset
-        repeat(components) { component -> destination[component] =
-            readFloat(bytes, start + componentOffset(accessor, component), accessor.componentType, accessor.normalized) }
+        repeat(components) { component ->
+            destination[component] =
+                readFloat(
+                    bytes,
+                    start + componentOffset(accessor, component),
+                    accessor.componentType,
+                    accessor.normalized
+                )
+        }
     }
 }
 
-fun KotlinGltf.readUInts(accessorIndex: Int, elementIndex: Int, destination: IntArray) {
+fun KotlinGltf.readUInts(accessorIndex: Int, elementIndex: Int, destination: MutInts) {
     val accessor = accessors[accessorIndex]
-    require(accessor.type in 1..4 && accessor.componentType != 5126 && elementIndex in 0..<accessor.count)
+    require(
+        accessor.type in GLTF_TYPE_SCALAR..GLTF_TYPE_VEC4 && accessor.componentType != GLTF_COMPONENT_FLOAT &&
+                elementIndex in 0..<accessor.count
+    )
     val count = componentCount(accessor.type)
     require(destination.size >= count)
     val location = elementLocation(accessor, elementIndex)
-    if (location < 0) { destination.fill(0, 0, count); return }
-    val viewIndex = (location ushr 32).toInt()
+    if (location < 0) {
+        destination.fill(0, 0, count); return
+    }
+    val viewIndex = (location ushr Int.SIZE_BITS).toInt()
     val offset = location.toInt()
     val view = bufferViews[viewIndex]
     val bytes = bufferSources[view.buffer]
@@ -145,8 +209,8 @@ fun KotlinGltf.readUInts(accessorIndex: Int, elementIndex: Int, destination: Int
     repeat(count) { component ->
         val address = start + component * size
         destination[component] = when (accessor.componentType) {
-            5120 -> bytes[address].toInt()
-            5122 -> (shortViewHandle.get(bytes, address) as Short).toInt()
+            GLTF_COMPONENT_BYTE -> bytes[address].toInt()
+            GLTF_COMPONENT_SHORT -> (shortViewHandle.get(bytes, address) as Short).toInt()
             else -> readUnsigned(bytes, address, accessor.componentType).toInt()
         }
     }
@@ -154,11 +218,15 @@ fun KotlinGltf.readUInts(accessorIndex: Int, elementIndex: Int, destination: Int
 
 fun KotlinGltf.readIndex(accessorIndex: Int, elementIndex: Int): Long {
     val accessor = accessors[accessorIndex]
-    require(accessor.type == 1 && elementIndex in 0..<accessor.count)
+    require(accessor.type == GLTF_TYPE_SCALAR && elementIndex in 0..<accessor.count)
     val location = elementLocation(accessor, elementIndex)
     if (location < 0) return 0L
-    val view = bufferViews[(location ushr 32).toInt()]
-    return readUnsigned(bufferSources[view.buffer], bufferOffsets[view.buffer] + view.offset + location.toInt(), accessor.componentType)
+    val view = bufferViews[(location ushr Int.SIZE_BITS).toInt()]
+    return readUnsigned(
+        bufferSources[view.buffer],
+        bufferOffsets[view.buffer] + view.offset + location.toInt(),
+        accessor.componentType
+    )
 }
 
 private fun KotlinGltf.elementLocation(accessor: KAccessor, index: Int): Long {
@@ -172,79 +240,100 @@ private fun KotlinGltf.elementLocation(accessor: KAccessor, index: Int): Long {
         while (low <= high) {
             val mid = (low + high) ushr 1
             val candidate = readUnsigned(bytes, start + mid * size, sparse.indicesComponentType)
-            if (candidate == index.toLong()) return (sparse.valuesBufferView.toLong() shl 32) or
-                ((sparse.valuesOffset + mid * elementSize(accessor.type, accessor.componentType)).toLong() and 0xffffffffL)
+            if (candidate == index.toLong()) return (sparse.valuesBufferView.toLong() shl Int.SIZE_BITS) or
+                    ((sparse.valuesOffset + mid * elementSize(
+                        accessor.type,
+                        accessor.componentType
+                    )).toLong() and UNSIGNED_INT_MASK)
             if (candidate < index) low = mid + 1 else high = mid - 1
         }
     }
-    return if (accessor.bufferView < 0) -1L else (accessor.bufferView.toLong() shl 32) or
-        ((accessor.offset + index * accessor.stride).toLong() and 0xffffffffL)
+    return if (accessor.bufferView < 0) MISSING_ELEMENT_LOCATION else (accessor.bufferView.toLong() shl Int.SIZE_BITS) or
+            ((accessor.offset + index * accessor.stride).toLong() and UNSIGNED_INT_MASK)
 }
 
 fun KotlinGltf.findAccessor(mesh: Int, primitive: Int, semantic: Int, set: Int = 0): Int {
     for (attribute in meshes[mesh].primitives[primitive].attributes)
         if (attribute.semantic == semantic && attribute.set == set) return attribute.accessor
-    return -1
+    return GLTF_MISSING_INDEX
 }
 
 fun KotlinGltf.bufferViewBytes(index: Int): ByteBuffer {
     val view = bufferViews[index]
-    return ByteBuffer.wrap(bufferSources[view.buffer], bufferOffsets[view.buffer] + view.offset, view.byteLength).slice().asReadOnlyBuffer()
+    return ByteBuffer.wrap(bufferSources[view.buffer], bufferOffsets[view.buffer] + view.offset, view.byteLength)
+        .slice().asReadOnlyBuffer()
 }
 
-private fun unpackPacked(bytes: ByteArray, start: Int, count: Int, type: Int, normalized: Boolean, out: FloatArray) {
+private fun unpackPacked(bytes: Bytes, start: Int, count: Int, type: Int, normalized: Boolean, out: MutFloats) {
     var offset = start
     when (type) {
-        5120 -> {
-            val divisor = if (normalized) 127f else 1f
+        GLTF_COMPONENT_BYTE -> {
+            val divisor = if (normalized) SIGNED_BYTE_MAX else 1f
             repeat(count) { out[it] = bytes[offset++].toFloat() / divisor }
         }
-        5121 -> {
-            val divisor = if (normalized) 255f else 1f
-            repeat(count) { out[it] = (bytes[offset++].toInt() and 255).toFloat() / divisor }
+
+        GLTF_COMPONENT_UNSIGNED_BYTE -> {
+            val divisor = if (normalized) UNSIGNED_BYTE_MAX else 1f
+            repeat(count) { out[it] = (bytes[offset++].toInt() and UNSIGNED_BYTE_MASK).toFloat() / divisor }
         }
-        5122 -> {
-            val divisor = if (normalized) 32767f else 1f
+
+        GLTF_COMPONENT_SHORT -> {
+            val divisor = if (normalized) SIGNED_SHORT_MAX else 1f
             repeat(count) {
                 out[it] = (shortViewHandle.get(bytes, offset) as Short).toFloat() / divisor
-                offset += 2
+                offset += Short.SIZE_BYTES
             }
         }
-        5123 -> {
-            val divisor = if (normalized) 65535f else 1f
+
+        GLTF_COMPONENT_UNSIGNED_SHORT -> {
+            val divisor = if (normalized) UNSIGNED_SHORT_MAX else 1f
             repeat(count) {
-                out[it] = ((shortViewHandle.get(bytes, offset) as Short).toInt() and 65535).toFloat() / divisor
-                offset += 2
+                out[it] = ((shortViewHandle.get(bytes, offset) as Short).toInt() and UNSIGNED_SHORT_MASK).toFloat() / divisor
+                offset += Short.SIZE_BYTES
             }
         }
-        5125 -> {
+
+        GLTF_COMPONENT_UNSIGNED_INT -> {
             if (normalized) out.fill(0f, 0, count) else repeat(count) {
-                out[it] = ((intViewHandle.get(bytes, offset) as Int).toLong() and 0xffffffffL).toFloat()
-                offset += 4
+                out[it] = ((intViewHandle.get(bytes, offset) as Int).toLong() and UNSIGNED_INT_MASK).toFloat()
+                offset += Int.SIZE_BYTES
             }
         }
+
         else -> error("Invalid packed accessor component type")
     }
 }
 
 private fun componentOffset(accessor: KAccessor, component: Int): Int {
     val size = componentSize(accessor.componentType)
-    val rows = when (accessor.type) { 5 -> 2; 6 -> 3; 7 -> 4; else -> return component * size }
-    return (component / rows) * ((rows * size + 3) and -4) + (component % rows) * size
+    val rows = when (accessor.type) {
+        GLTF_TYPE_MAT2 -> MAT2_ROWS
+        GLTF_TYPE_MAT3 -> MAT3_ROWS
+        GLTF_TYPE_MAT4 -> MAT4_ROWS
+        else -> return component * size
+    }
+    return (component / rows) * ((rows * size + MATRIX_COLUMN_ALIGNMENT - 1) and -MATRIX_COLUMN_ALIGNMENT) +
+            (component % rows) * size
 }
 
-private fun readFloat(bytes: ByteArray, offset: Int, type: Int, normalized: Boolean): Float = when (type) {
-    5126 -> Float.fromBits(intViewHandle.get(bytes, offset) as Int)
-    5120 -> if (normalized) bytes[offset] / 127f else bytes[offset].toFloat()
-    5121 -> if (normalized) (bytes[offset].toInt() and 255) / 255f else (bytes[offset].toInt() and 255).toFloat()
-    5122 -> {
+private fun readFloat(bytes: Bytes, offset: Int, type: Int, normalized: Boolean): Float = when (type) {
+    GLTF_COMPONENT_FLOAT -> Float.fromBits(intViewHandle.get(bytes, offset) as Int)
+    GLTF_COMPONENT_BYTE -> if (normalized) bytes[offset] / SIGNED_BYTE_MAX else bytes[offset].toFloat()
+    GLTF_COMPONENT_UNSIGNED_BYTE -> {
+        val value = bytes[offset].toInt() and UNSIGNED_BYTE_MASK
+        if (normalized) value / UNSIGNED_BYTE_MAX else value.toFloat()
+    }
+    GLTF_COMPONENT_SHORT -> {
         val value = shortViewHandle.get(bytes, offset) as Short
-        if (normalized) value / 32767f else value.toFloat()
+        if (normalized) value / SIGNED_SHORT_MAX else value.toFloat()
     }
-    5123 -> {
-        val value = (shortViewHandle.get(bytes, offset) as Short).toInt() and 65535
-        if (normalized) value / 65535f else value.toFloat()
+
+    GLTF_COMPONENT_UNSIGNED_SHORT -> {
+        val value = (shortViewHandle.get(bytes, offset) as Short).toInt() and UNSIGNED_SHORT_MASK
+        if (normalized) value / UNSIGNED_SHORT_MAX else value.toFloat()
     }
-    5125 -> if (normalized) 0f else ((intViewHandle.get(bytes, offset) as Int).toLong() and 0xffffffffL).toFloat()
+
+    GLTF_COMPONENT_UNSIGNED_INT -> if (normalized) 0f else
+        ((intViewHandle.get(bytes, offset) as Int).toLong() and UNSIGNED_INT_MASK).toFloat()
     else -> error("Invalid component type")
 }

@@ -6,16 +6,14 @@
 
 package com.varlanv.klab.collections
 
-import com.varlanv.klab.intViewHandle
-import com.varlanv.klab.longViewHandle
-import com.varlanv.klab.shortViewHandle
+import com.varlanv.klab.*
 
 val stableEmptyBytes: Bytes = Bytes(0)
 val stableMutBytes: MutBytes = stableEmptyBytes
 val stableEmptyChars: Chars = Chars(0)
 val stableMutChars: MutChars = stableEmptyChars
 val stableEmptyInts: Ints = Ints(0)
-val stableMutInts: MutInts = stableEmptyInts
+val stableEmptyMutInts: MutInts = stableEmptyInts
 val stableEmptyLongs: Longs = Longs(0)
 val stableMutLongs: MutLongs = stableEmptyLongs
 val stableEmptyShorts: Shorts = Shorts(0)
@@ -106,3 +104,17 @@ inline fun Bytes.setPackedShort(idx: Int, value: Short) {
 }
 
 inline fun Bytes.getPackedShort(idx: Int): Short = shortViewHandle.get(this, idx) as Short
+
+
+inline fun Bytes.setPackedFloat(idx: Int, value: Float) {
+    floatViewHandle.set(this, idx, value)
+}
+
+inline fun Bytes.getPackedFloat(idx: Int): Float = floatViewHandle.get(this, idx) as Float
+
+
+inline fun Bytes.setPackedDouble(idx: Int, value: Double) {
+    doubleViewHandle.set(this, idx, value)
+}
+
+inline fun Bytes.getPackedDouble(idx: Int): Double = doubleViewHandle.get(this, idx) as Double

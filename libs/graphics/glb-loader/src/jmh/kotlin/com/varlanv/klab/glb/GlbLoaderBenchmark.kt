@@ -31,11 +31,13 @@ import java.util.concurrent.TimeUnit
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
 @Warmup(iterations = 5, time = 1)
 @Measurement(iterations = 5, time = 1)
-@Fork(value = 3, jvmArgsAppend = ["--add-modules=jdk.incubator.vector", "--enable-native-access=ALL-UNNAMED", "-Xms512m", "-Xmx512m"])
+@Fork(
+    value = 3,
+    jvmArgsAppend = ["--add-modules=jdk.incubator.vector", "--enable-native-access=ALL-UNNAMED", "-Xms512m", "-Xmx512m"]
+)
 open class GlbLoaderBenchmark {
 
-    @Param("/var/home/vlad/dev/projects/klab/assets/models/duck/Duck.glb")
-    lateinit var path: String
+    val path: String = "/var/home/vlad/dev/projects/klab/assets/models/duck/Duck.glb"
 
     private lateinit var arena: Arena
     private lateinit var bytes: ByteArray
@@ -43,7 +45,6 @@ open class GlbLoaderBenchmark {
     private lateinit var scratch: ScratchAllocator
     private lateinit var outputs: Array<MemorySegment>
     private lateinit var kotlinOutputs: Array<FloatArray>
-    private lateinit var kotlinScalar: KotlinGltfLoader
     private lateinit var kotlinVector: KotlinGltfLoader
     private lateinit var geometryAccessors: IntArray
     private lateinit var geometryIndices: BooleanArray
@@ -58,8 +59,7 @@ open class GlbLoaderBenchmark {
         source = arena.allocate(bytes.size.toLong(), 8)
         MemorySegment.copy(MemorySegment.ofArray(bytes), 0, source, 0, bytes.size.toLong())
         scratch = ScratchAllocator(arena.allocate(bytes.size.toLong() + 4096, 16))
-        kotlinScalar = KotlinGltfLoader(vectorized = false)
-        kotlinVector = KotlinGltfLoader(vectorized = true)
+        kotlinVector = KotlinGltfLoader()
         with(scratch) {
             GlbLoader.load(source).use { model ->
                 outputs = Array(model.accessorCount) { index ->
@@ -67,9 +67,8 @@ open class GlbLoaderBenchmark {
                     arena.allocate(accessor.count * accessor.elementType.componentCount * 4, 16)
                 }
                 kotlinOutputs = Array(outputs.size) { index -> FloatArray((outputs[index].byteSize() / 4).toInt()) }
-                val kotlin = kotlinScalar.load(bytes)
+                val kotlin = kotlinVector.load(bytes)
                 verify(kotlin, model)
-                verify(kotlinVector.load(bytes), model)
                 val accessors = ArrayList<Int>()
                 val indices = ArrayList<Boolean>()
                 for (mesh in kotlin.meshes) for (primitive in mesh.primitives) {
@@ -86,7 +85,8 @@ open class GlbLoaderBenchmark {
                 geometryIndices = BooleanArray(indices.size) { indices[it] }
                 geometryNativeOutputs = Array(accessors.size) { position ->
                     val accessor = model.accessor(accessors[position])
-                    val count = if (indices[position]) accessor.count else accessor.count * accessor.elementType.componentCount
+                    val count =
+                        if (indices[position]) accessor.count else accessor.count * accessor.elementType.componentCount
                     arena.allocate(count * 4, 16)
                 }
                 geometryFloatOutputs = Array(accessors.size) { position ->
@@ -142,11 +142,6 @@ open class GlbLoaderBenchmark {
     }
 
     @Benchmark
-    fun kotlinParseScalar(blackhole: Blackhole) {
-        blackhole.consume(kotlinScalar.load(bytes))
-    }
-
-    @Benchmark
     fun kotlinParseVector(blackhole: Blackhole) {
         blackhole.consume(kotlinVector.load(bytes))
     }
@@ -154,11 +149,6 @@ open class GlbLoaderBenchmark {
     @Benchmark
     fun kotlinFreshLoader(blackhole: Blackhole) {
         blackhole.consume(KotlinGltfLoader().load(bytes))
-    }
-
-    @Benchmark
-    fun kotlinLoadAndUnpackAllFloatsScalar(blackhole: Blackhole) {
-        unpack(kotlinScalar.load(bytes), blackhole)
     }
 
     @Benchmark
@@ -180,11 +170,6 @@ open class GlbLoaderBenchmark {
         with(scratch) {
             GlbLoader.load(bytes).use { model -> unpackGeometry(model, blackhole) }
         }
-    }
-
-    @Benchmark
-    fun kotlinLoadGeometryScalar(blackhole: Blackhole) {
-        unpackGeometry(kotlinScalar.load(bytes), blackhole)
     }
 
     @Benchmark
@@ -249,7 +234,12 @@ open class GlbLoaderBenchmark {
             kotlin.copyFloatsTo(index, kotlinOutputs[index])
             var component = 0
             while (component < kotlinOutputs[index].size) {
-                check(kotlinOutputs[index][component].toBits() == outputs[index].getAtIndex(ValueLayout.JAVA_FLOAT, component.toLong()).toBits()) {
+                check(
+                    kotlinOutputs[index][component].toBits() == outputs[index].getAtIndex(
+                        ValueLayout.JAVA_FLOAT,
+                        component.toLong()
+                    ).toBits()
+                ) {
                     "Accessor $index component $component differs"
                 }
                 component++

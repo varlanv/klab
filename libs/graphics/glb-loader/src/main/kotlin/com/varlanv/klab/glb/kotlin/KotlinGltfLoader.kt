@@ -1,5 +1,9 @@
 package com.varlanv.klab.glb.kotlin
 
+import com.varlanv.klab.collections.Array
+import com.varlanv.klab.collections.Bytes
+import com.varlanv.klab.collections.MutBytes
+import com.varlanv.klab.collections.MutInts
 import com.varlanv.klab.intViewHandle
 import com.varlanv.klab.shortViewHandle
 import jdk.incubator.vector.ByteVector
@@ -7,51 +11,93 @@ import jdk.incubator.vector.IntVector
 import jdk.incubator.vector.ShortVector
 import jdk.incubator.vector.VectorOperators
 import java.nio.ByteOrder
-import java.util.Base64
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.Base64
 
-class KotlinGltfLoader(private val vectorized: Boolean = true) {
+private const val GLTF_VERSION = "2.0"
+private const val GLB_VERSION = 2
+private const val GLB_MAGIC = 0x46546c67
+private const val GLB_JSON_CHUNK = 0x4e4f534a
+private const val GLB_BIN_CHUNK = 0x004e4942
+private const val GLB_MAGIC_OFFSET = 0
+private const val GLB_VERSION_OFFSET = 4
+private const val GLB_LENGTH_OFFSET = 8
+private const val GLB_JSON_LENGTH_OFFSET = 12
+private const val GLB_JSON_TYPE_OFFSET = 16
+private const val GLB_JSON_PAYLOAD_OFFSET = 20
+private const val GLB_CHUNK_HEADER_BYTES = 8
+private const val GLB_CHUNK_TYPE_OFFSET = 4
+private const val GLB_CHUNK_ALIGNMENT = 4
+private const val MESHOPT_ATTRIBUTE_ALIGNMENT = 4
+private const val MESHOPT_MAX_ATTRIBUTE_STRIDE = 256
+private const val MESHOPT_LARGE_FILTER_STRIDE = 8
+private const val TRIANGLE_VERTICES = 3
+private const val CUBIC_SPLINE_VALUES_PER_KEYFRAME = 3
+private const val MAT2_ROWS = 2
+private const val MAT3_ROWS = 3
+private const val UNSIGNED_BYTE_MASK = 0xff
+private const val UNSIGNED_SHORT_MASK = 0xffff
+private const val UNSIGNED_INT_MASK = 0xffffffffL
+private const val UNSIGNED_BYTE_SIGN_BIT = 0x80
+private const val UNSIGNED_SHORT_SIGN_BIT = 0x8000
+private const val URI_ESCAPE_PREFIX = 37
+private const val URI_ESCAPE_HEX_DIGITS = 2
+private const val URI_ESCAPE_LENGTH = 3
+private const val HEX_RADIX = 16
+private const val HEX_DIGIT_BITS = 4
+
+class KotlinGltfLoader {
     private val json = GltfJson()
 
-    fun load(source: ByteArray): KotlinGltf = load(source, null)
+    fun load(source: Bytes): KotlinGltf = load(source, null)
 
     fun load(path: Path): KotlinGltf {
         val absolute = path.toAbsolutePath()
-        return load(Files.readAllBytes(absolute)) { uri -> Files.readAllBytes(absolute.parent.resolve(uri)) }
+        return load(Files.readAllBytes(absolute)) { uri ->
+            Files.readAllBytes(absolute.parent.resolve(uri))
+        }
     }
 
-    fun load(source: ByteArray, resolver: ((String) -> ByteArray)?): KotlinGltf {
+    fun load(source: Bytes, resolver: ((String) -> Bytes)?): KotlinGltf {
         var binOffset = 0
         var binSize = 0
         val model = try {
-            if (source.size >= 4 && intViewHandle.get(source, 0) as Int == 0x46546c67) {
-                require(source.size >= 20) { "GLB header is truncated" }
-                require(intViewHandle.get(source, 4) as Int == 2) { "Only GLB version 2 is supported" }
-                require(intViewHandle.get(source, 8) as Int == source.size) { "GLB length does not match input size" }
-                val jsonSize = intViewHandle.get(source, 12) as Int
-                require(jsonSize >= 0 && jsonSize <= source.size - 20 && jsonSize % 4 == 0) { "Invalid GLB JSON size" }
-                require(intViewHandle.get(source, 16) as Int == 0x4e4f534a) { "Expected GLB JSON chunk" }
-                val next = 20 + jsonSize
+            if (source.size >= Int.SIZE_BYTES && intViewHandle.get(source, GLB_MAGIC_OFFSET) as Int == GLB_MAGIC) {
+                require(source.size >= GLB_JSON_PAYLOAD_OFFSET) { "GLB header is truncated" }
+                require(intViewHandle.get(source, GLB_VERSION_OFFSET) as Int == GLB_VERSION) { "Only GLB version 2 is supported" }
+                require(intViewHandle.get(source, GLB_LENGTH_OFFSET) as Int == source.size) { "GLB length does not match input size" }
+                val jsonSize = intViewHandle.get(source, GLB_JSON_LENGTH_OFFSET) as Int
+                require(
+                    jsonSize >= 0 && jsonSize <= source.size - GLB_JSON_PAYLOAD_OFFSET &&
+                            jsonSize % GLB_CHUNK_ALIGNMENT == 0
+                ) { "Invalid GLB JSON size" }
+                require(intViewHandle.get(source, GLB_JSON_TYPE_OFFSET) as Int == GLB_JSON_CHUNK) { "Expected GLB JSON chunk" }
+                val next = GLB_JSON_PAYLOAD_OFFSET + jsonSize
                 if (next < source.size) {
-                    require(next <= source.size - 8) { "Truncated GLB BIN header" }
+                    require(next <= source.size - GLB_CHUNK_HEADER_BYTES) { "Truncated GLB BIN header" }
                     binSize = intViewHandle.get(source, next) as Int
-                    require(binSize >= 0 && binSize <= source.size - next - 8 && binSize % 4 == 0) { "Invalid GLB BIN size" }
-                    require(intViewHandle.get(source, next + 4) as Int == 0x004e4942) { "Expected GLB BIN chunk" }
-                    binOffset = next + 8
+                    require(
+                        binSize >= 0 && binSize <= source.size - next - GLB_CHUNK_HEADER_BYTES &&
+                                binSize % GLB_CHUNK_ALIGNMENT == 0
+                    ) { "Invalid GLB BIN size" }
+                    require(intViewHandle.get(source, next + GLB_CHUNK_TYPE_OFFSET) as Int == GLB_BIN_CHUNK) { "Expected GLB BIN chunk" }
+                    binOffset = next + GLB_CHUNK_HEADER_BYTES
                 }
-                json.parse(source, 20, jsonSize)
+                json.parse(source, GLB_JSON_PAYLOAD_OFFSET, jsonSize)
             } else json.parse(source, 0, source.size)
             mapGltf(json)
         } finally {
             json.release()
         }
-        model.vectorized = vectorized
         model.source = source
         model.binOffset = binOffset
         model.binSize = binSize
-        require(model.asset.version == "2.0" && (model.asset.minVersion == null || model.asset.minVersion == "2.0")) { "Unsupported glTF version" }
-        model.bufferOffsets = IntArray(model.buffers.size)
+        require(
+            model.asset.version == GLTF_VERSION &&
+                    (model.asset.minVersion == null || model.asset.minVersion == GLTF_VERSION)
+        ) { "Unsupported glTF version" }
+        val bufferOffsets = MutInts(model.buffers.size)
         model.bufferSources = Array(model.buffers.size) { index ->
             val buffer = model.buffers[index]
             require(buffer.byteLength >= 0) { "Invalid buffer length" }
@@ -59,22 +105,27 @@ class KotlinGltfLoader(private val vectorized: Boolean = true) {
             val data = when {
                 uri == null && index == 0 && binOffset > 0 -> {
                     require(buffer.byteLength <= binSize) { "Truncated GLB buffer" }
-                    model.bufferOffsets[index] = binOffset
+                    bufferOffsets[index] = binOffset
                     source
                 }
+
                 uri != null && uri.startsWith("data:") -> {
                     val comma = uri.indexOf(',')
                     require(comma >= 0 && uri.substring(0, comma).endsWith(";base64")) { "Unsupported buffer data URI" }
                     Base64.getDecoder().decode(uri.substring(comma + 1))
                 }
+
                 uri != null && resolver != null -> resolver(decodeGltfUri(uri))
                 else -> error("External GLB buffers require a resource resolver")
             }
-            require(buffer.byteLength <= data.size - model.bufferOffsets[index]) { "Truncated buffer" }
+            require(buffer.byteLength <= data.size - bufferOffsets[index]) { "Truncated buffer" }
             data
         }
-        for (extension in model.extensionsRequired) require(extension != "KHR_draco_mesh_compression" &&
-            extension != "EXT_meshopt_compression" && extension != "KHR_meshopt_compression") { "GLB geometry requires an additional decoder: $extension" }
+        model.bufferOffsets = bufferOffsets
+        for (extension in model.extensionsRequired) require(
+            extension != "KHR_draco_mesh_compression" &&
+                    extension != "EXT_meshopt_compression" && extension != "KHR_meshopt_compression"
+        ) { "GLB geometry requires an additional decoder: $extension" }
         validate(model)
         return model
     }
@@ -92,16 +143,21 @@ class KotlinGltfLoader(private val vectorized: Boolean = true) {
                 require(view.byteLength.toLong() == compression.stride.toLong() * compression.count)
                 require(compression.mode in arrayOf("ATTRIBUTES", "TRIANGLES", "INDICES"))
                 when (compression.mode) {
-                    "ATTRIBUTES" -> require(compression.stride > 0 && compression.stride % 4 == 0 && compression.stride <= 256)
+                    "ATTRIBUTES" -> require(
+                        compression.stride > 0 && compression.stride % MESHOPT_ATTRIBUTE_ALIGNMENT == 0 &&
+                                compression.stride <= MESHOPT_MAX_ATTRIBUTE_STRIDE
+                    )
                     "TRIANGLES", "INDICES" -> {
-                        require(compression.stride == 2 || compression.stride == 4)
+                        require(compression.stride == Short.SIZE_BYTES || compression.stride == Int.SIZE_BYTES)
                         require(compression.filter == null || compression.filter == "NONE")
-                        if (compression.mode == "TRIANGLES") require(compression.count % 3 == 0)
+                        if (compression.mode == "TRIANGLES") require(compression.count % TRIANGLE_VERTICES == 0)
                     }
                 }
                 when (compression.filter) {
-                    "OCTAHEDRAL", "COLOR" -> require(compression.stride == 4 || compression.stride == 8)
-                    "QUATERNION" -> require(compression.stride == 8)
+                    "OCTAHEDRAL", "COLOR" -> require(
+                        compression.stride == Int.SIZE_BYTES || compression.stride == MESHOPT_LARGE_FILTER_STRIDE
+                    )
+                    "QUATERNION" -> require(compression.stride == MESHOPT_LARGE_FILTER_STRIDE)
                 }
             }
         }
@@ -113,16 +169,36 @@ class KotlinGltfLoader(private val vectorized: Boolean = true) {
             accessor.stride = if (accessor.bufferView >= 0 && model.bufferViews[accessor.bufferView].stride != 0)
                 model.bufferViews[accessor.bufferView].stride else size
             require(accessor.stride >= size && accessor.stride % component == 0) { "Invalid GLB accessor stride" }
-            if (accessor.bufferView >= 0) viewRange(model, accessor.bufferView, accessor.offset,
-                (accessor.count - 1L) * accessor.stride + size, component)
+            if (accessor.bufferView >= 0) viewRange(
+                model, accessor.bufferView, accessor.offset,
+                (accessor.count - 1L) * accessor.stride + size, component
+            )
             val sparse = accessor.sparse
             if (sparse != null) {
                 require(sparse.count > 0 && sparse.count <= accessor.count) { "Invalid sparse count" }
-                require(sparse.indicesComponentType == 5121 || sparse.indicesComponentType == 5123 || sparse.indicesComponentType == 5125)
+                require(
+                    sparse.indicesComponentType == GLTF_COMPONENT_UNSIGNED_BYTE ||
+                            sparse.indicesComponentType == GLTF_COMPONENT_UNSIGNED_SHORT ||
+                            sparse.indicesComponentType == GLTF_COMPONENT_UNSIGNED_INT
+                )
                 val indexSize = componentSize(sparse.indicesComponentType)
-                viewRange(model, sparse.indicesBufferView, sparse.indicesOffset, sparse.count.toLong() * indexSize, indexSize)
+                viewRange(
+                    model,
+                    sparse.indicesBufferView,
+                    sparse.indicesOffset,
+                    sparse.count.toLong() * indexSize,
+                    indexSize
+                )
                 viewRange(model, sparse.valuesBufferView, sparse.valuesOffset, sparse.count.toLong() * size, component)
-                require(indexBound(model, sparse.indicesBufferView, sparse.indicesOffset, sparse.indicesComponentType, sparse.count) < accessor.count.toLong()) { "Sparse index exceeds accessor count" }
+                require(
+                    indexBound(
+                        model,
+                        sparse.indicesBufferView,
+                        sparse.indicesOffset,
+                        sparse.indicesComponentType,
+                        sparse.count
+                    ) < accessor.count.toLong()
+                ) { "Sparse index exceeds accessor count" }
             }
         }
         for (mesh in model.meshes) {
@@ -130,7 +206,10 @@ class KotlinGltfLoader(private val vectorized: Boolean = true) {
             require(mesh.weights.isEmpty() || mesh.weights.size == targets)
             require(mesh.targetNames.isEmpty() || mesh.targetNames.size == targets)
             for (primitive in mesh.primitives) {
-                require(primitive.mode in 0..6 && primitive.targets.size == targets && primitive.attributes.isNotEmpty()) { "Invalid GLB primitive" }
+                require(
+                    primitive.mode in GLTF_PRIMITIVE_POINTS..GLTF_PRIMITIVE_TRIANGLE_FAN &&
+                            primitive.targets.size == targets && primitive.attributes.isNotEmpty()
+                ) { "Invalid GLB primitive" }
                 reference(primitive.material, model.materials.size)
                 val count = attributeCount(model, primitive.attributes)
                 for (target in primitive.targets) for (attribute in target) {
@@ -140,10 +219,16 @@ class KotlinGltfLoader(private val vectorized: Boolean = true) {
                 reference(primitive.indices, model.accessors.size)
                 if (primitive.indices >= 0) {
                     val indices = model.accessors[primitive.indices]
-                    require(indices.type == 1 && (indices.componentType == 5121 || indices.componentType == 5123 || indices.componentType == 5125)) { "Invalid index accessor" }
+                    require(
+                        indices.type == GLTF_TYPE_SCALAR &&
+                                (indices.componentType == GLTF_COMPONENT_UNSIGNED_BYTE ||
+                                        indices.componentType == GLTF_COMPONENT_UNSIGNED_SHORT ||
+                                        indices.componentType == GLTF_COMPONENT_UNSIGNED_INT)
+                    ) { "Invalid index accessor" }
                     require(indices.stride == componentSize(indices.componentType)) { "Invalid index stride" }
                     if (indices.bufferView >= 0) {
-                        val bound = indexBound(model, indices.bufferView, indices.offset, indices.componentType, indices.count)
+                        val bound =
+                            indexBound(model, indices.bufferView, indices.offset, indices.componentType, indices.count)
                         require(bound < count.toLong()) { "Index $bound exceeds vertex count $count; offset ${model.bufferOffsets[0]} view ${model.bufferViews[indices.bufferView].offset}" }
                     }
                 }
@@ -169,16 +254,18 @@ class KotlinGltfLoader(private val vectorized: Boolean = true) {
             reference(node.light, model.lights.size)
             for (child in node.children) {
                 reference(child, model.nodes.size, false)
-                require(model.nodes[child].parent == -1) { "Node has multiple parents" }
+                require(model.nodes[child].parent == GLTF_MISSING_INDEX) { "Node has multiple parents" }
                 model.nodes[child].parent = index
             }
             if (node.weights.isNotEmpty() && node.mesh >= 0 && model.meshes[node.mesh].primitives.isNotEmpty())
                 require(node.weights.size == model.meshes[node.mesh].primitives[0].targets.size)
-            if (node.instancing.isNotEmpty() || node.extensions.any { it.name == "EXT_mesh_gpu_instancing" }) { require(node.mesh >= 0); attributeCount(model, node.instancing) }
+            if (node.instancing.isNotEmpty() || node.extensions.any { it.name == "EXT_mesh_gpu_instancing" }) {
+                require(node.mesh >= 0); attributeCount(model, node.instancing)
+            }
         }
         for (node in model.nodes) {
             var slow = node.parent
-            var fast = if (slow < 0) -1 else model.nodes[slow].parent
+            var fast = if (slow < 0) GLTF_MISSING_INDEX else model.nodes[slow].parent
             while (slow >= 0 && fast >= 0) {
                 require(slow != fast) { "Node hierarchy contains a cycle" }
                 slow = model.nodes[slow].parent
@@ -206,13 +293,14 @@ class KotlinGltfLoader(private val vectorized: Boolean = true) {
                 reference(channel.targetNode, model.nodes.size)
                 if (channel.targetNode < 0) continue
                 var components = 1
-                if (channel.targetPath == 4) {
+                if (channel.targetPath == GLTF_PATH_WEIGHTS) {
                     val mesh = model.nodes[channel.targetNode].mesh
                     require(mesh >= 0 && model.meshes[mesh].primitives.isNotEmpty())
                     components = model.meshes[mesh].primitives[0].targets.size
                 }
                 val sampler = animation.samplers[channel.sampler]
-                val values = if (sampler.interpolation == 2) 3 else 1
+                val values = if (sampler.interpolation == GLTF_INTERPOLATION_CUBIC_SPLINE)
+                    CUBIC_SPLINE_VALUES_PER_KEYFRAME else 1
                 require(model.accessors[sampler.input].count.toLong() * components * values == model.accessors[sampler.output].count.toLong())
             }
         }
@@ -231,7 +319,9 @@ class KotlinGltfLoader(private val vectorized: Boolean = true) {
     }
 
     private fun validateTextures(material: KMaterial, size: Int) {
-        fun texture(view: KTextureView?) { if (view != null) reference(view.texture, size) }
+        fun texture(view: KTextureView?) {
+            if (view != null) reference(view.texture, size)
+        }
         texture(material.normalTexture); texture(material.occlusionTexture); texture(material.emissiveTexture)
         material.metallicRoughness?.let { texture(it.baseColorTexture); texture(it.metallicRoughnessTexture) }
         material.specularGlossiness?.let { texture(it.diffuseTexture); texture(it.specularGlossinessTexture) }
@@ -249,13 +339,12 @@ class KotlinGltfLoader(private val vectorized: Boolean = true) {
         val view = model.bufferViews[viewIndex]
         val bytes = model.bufferSources[view.buffer]
         val start = model.bufferOffsets[view.buffer] + view.offset + offset
-        return if (vectorized && vectorAvailable) GltfIndexVectors.bound(bytes, start, type, count)
-        else scalarIndexBound(bytes, start, type, count)
+        return GltfIndexVectors.bound(bytes, start, type, count)
     }
 }
 
 internal fun reference(index: Int, size: Int, optional: Boolean = true) {
-    require(index >= (if (optional) -1 else 0) && index < size) { "Invalid glTF reference $index/$size" }
+    require(index >= (if (optional) GLTF_MISSING_INDEX else 0) && index < size) { "Invalid glTF reference $index/$size" }
 }
 
 internal fun range(offset: Int, length: Long, available: Int) {
@@ -269,49 +358,71 @@ internal fun viewRange(model: KotlinGltf, index: Int, offset: Int, length: Long,
     require((model.bufferOffsets[view.buffer].toLong() + view.offset + offset) % alignment == 0L) { "Unaligned GLB accessor data" }
 }
 
-fun componentSize(type: Int): Int = when (type) { 5120, 5121 -> 1; 5122, 5123 -> 2; 5125, 5126 -> 4; else -> error("Invalid component type") }
-fun componentCount(type: Int): Int = when (type) { 1 -> 1; 2 -> 2; 3 -> 3; 4, 5 -> 4; 6 -> 9; 7 -> 16; else -> error("Invalid element type") }
-fun elementSize(type: Int, componentType: Int): Int {
-    val bytes = componentSize(componentType)
-    return when (type) { 5 -> ((2 * bytes + 3) and -4) * 2; 6 -> ((3 * bytes + 3) and -4) * 3; else -> componentCount(type) * bytes }
+fun componentSize(type: Int): Int = when (type) {
+    GLTF_COMPONENT_BYTE, GLTF_COMPONENT_UNSIGNED_BYTE -> Byte.SIZE_BYTES
+    GLTF_COMPONENT_SHORT, GLTF_COMPONENT_UNSIGNED_SHORT -> Short.SIZE_BYTES
+    GLTF_COMPONENT_UNSIGNED_INT, GLTF_COMPONENT_FLOAT -> Int.SIZE_BYTES
+    else -> error("Invalid component type")
 }
 
-internal fun scalarIndexBound(bytes: ByteArray, start: Int, type: Int, count: Int): Long {
+fun componentCount(type: Int): Int = when (type) {
+    GLTF_TYPE_SCALAR -> 1
+    GLTF_TYPE_VEC2 -> VEC2_COMPONENTS
+    GLTF_TYPE_VEC3 -> VEC3_COMPONENTS
+    GLTF_TYPE_VEC4 -> VEC4_COMPONENTS
+    GLTF_TYPE_MAT2 -> MAT2_COMPONENTS
+    GLTF_TYPE_MAT3 -> MAT3_COMPONENTS
+    GLTF_TYPE_MAT4 -> MAT4_COMPONENTS
+    else -> error("Invalid element type")
+}
+
+fun elementSize(type: Int, componentType: Int): Int {
+    val bytes = componentSize(componentType)
+    return when (type) {
+        GLTF_TYPE_MAT2 -> ((MAT2_ROWS * bytes + MATRIX_COLUMN_ALIGNMENT - 1) and -MATRIX_COLUMN_ALIGNMENT) * MAT2_ROWS
+        GLTF_TYPE_MAT3 -> ((MAT3_ROWS * bytes + MATRIX_COLUMN_ALIGNMENT - 1) and -MATRIX_COLUMN_ALIGNMENT) * MAT3_ROWS
+        else -> componentCount(type) * bytes
+    }
+}
+
+internal fun scalarIndexBound(bytes: Bytes, start: Int, type: Int, count: Int): Long {
     var offset = start
     return when (type) {
-        5121 -> {
+        GLTF_COMPONENT_UNSIGNED_BYTE -> {
             var bound = 0
-            repeat(count) { bound = maxOf(bound, bytes[offset++].toInt() and 255) }
+            repeat(count) { bound = maxOf(bound, bytes[offset++].toInt() and UNSIGNED_BYTE_MASK) }
             bound.toLong()
         }
-        5123 -> {
+
+        GLTF_COMPONENT_UNSIGNED_SHORT -> {
             var bound = 0
             repeat(count) {
-                bound = maxOf(bound, (shortViewHandle.get(bytes, offset) as Short).toInt() and 65535)
-                offset += 2
+                bound = maxOf(bound, (shortViewHandle.get(bytes, offset) as Short).toInt() and UNSIGNED_SHORT_MASK)
+                offset += Short.SIZE_BYTES
             }
             bound.toLong()
         }
-        5125 -> {
+
+        GLTF_COMPONENT_UNSIGNED_INT -> {
             var bound = 0L
             repeat(count) {
-                bound = maxOf(bound, (intViewHandle.get(bytes, offset) as Int).toLong() and 0xffffffffL)
-                offset += 4
+                bound = maxOf(bound, (intViewHandle.get(bytes, offset) as Int).toLong() and UNSIGNED_INT_MASK)
+                offset += Int.SIZE_BYTES
             }
             bound
         }
+
         else -> error("Invalid unsigned component type")
     }
 }
 
-internal fun readUnsigned(bytes: ByteArray, offset: Int, type: Int): Long = when (type) {
-    5121 -> (bytes[offset].toInt() and 255).toLong()
-    5123 -> ((shortViewHandle.get(bytes, offset) as Short).toInt() and 65535).toLong()
-    5125 -> (intViewHandle.get(bytes, offset) as Int).toLong() and 0xffffffffL
+internal fun readUnsigned(bytes: Bytes, offset: Int, type: Int): Long = when (type) {
+    GLTF_COMPONENT_UNSIGNED_BYTE -> (bytes[offset].toInt() and UNSIGNED_BYTE_MASK).toLong()
+    GLTF_COMPONENT_UNSIGNED_SHORT -> ((shortViewHandle.get(bytes, offset) as Short).toInt() and UNSIGNED_SHORT_MASK).toLong()
+    GLTF_COMPONENT_UNSIGNED_INT -> (intViewHandle.get(bytes, offset) as Int).toLong() and UNSIGNED_INT_MASK
     else -> error("Invalid unsigned component type")
 }
 
-internal val vectorAvailable = ModuleLayer.boot().findModule("jdk.incubator.vector").isPresent
 
 private object GltfIndexVectors {
     private val shorts = ShortVector.SPECIES_PREFERRED
@@ -319,41 +430,47 @@ private object GltfIndexVectors {
     private val bytesSpecies = ByteVector.SPECIES_PREFERRED
     private val swapBytes = ByteOrder.nativeOrder() != ByteOrder.LITTLE_ENDIAN
 
-    fun bound(bytes: ByteArray, start: Int, type: Int, count: Int): Long {
+    fun bound(bytes: Bytes, start: Int, type: Int, count: Int): Long {
         var index = 0
         var result: Long
         when (type) {
-            5123 -> {
+            GLTF_COMPONENT_UNSIGNED_SHORT -> {
                 var max = ShortVector.broadcast(shorts, Short.MIN_VALUE)
                 val end = shorts.loopBound(count)
                 while (index < end) {
-                    var lanes = ByteVector.fromArray(bytesSpecies, bytes, start + index * 2).reinterpretAsShorts()
+                    var lanes = ByteVector.fromArray(bytesSpecies, bytes, start + index * Short.SIZE_BYTES).reinterpretAsShorts()
                     if (swapBytes) lanes = lanes.lanewise(VectorOperators.REVERSE_BYTES)
                     max = max.max(lanes.lanewise(VectorOperators.XOR, Short.MIN_VALUE))
                     index += shorts.length()
                 }
-                result = ((max.reduceLanes(VectorOperators.MAX).toInt() xor 0x8000) and 65535).toLong()
+                result = ((max.reduceLanes(VectorOperators.MAX).toInt() xor UNSIGNED_SHORT_SIGN_BIT) and UNSIGNED_SHORT_MASK).toLong()
             }
-            5125 -> {
+
+            GLTF_COMPONENT_UNSIGNED_INT -> {
                 var max = IntVector.broadcast(ints, Int.MIN_VALUE)
                 val end = ints.loopBound(count)
                 while (index < end) {
-                    var lanes = ByteVector.fromArray(bytesSpecies, bytes, start + index * 4).reinterpretAsInts()
+                    var lanes = ByteVector.fromArray(bytesSpecies, bytes, start + index * Int.SIZE_BYTES).reinterpretAsInts()
                     if (swapBytes) lanes = lanes.lanewise(VectorOperators.REVERSE_BYTES)
                     max = max.max(lanes.lanewise(VectorOperators.XOR, Int.MIN_VALUE))
                     index += ints.length()
                 }
-                result = (max.reduceLanes(VectorOperators.MAX) xor Int.MIN_VALUE).toLong() and 0xffffffffL
+                result = (max.reduceLanes(VectorOperators.MAX) xor Int.MIN_VALUE).toLong() and UNSIGNED_INT_MASK
             }
-            5121 -> {
+
+            GLTF_COMPONENT_UNSIGNED_BYTE -> {
                 var max = ByteVector.broadcast(bytesSpecies, Byte.MIN_VALUE)
                 val end = bytesSpecies.loopBound(count)
                 while (index < end) {
-                    max = max.max(ByteVector.fromArray(bytesSpecies, bytes, start + index).lanewise(VectorOperators.XOR, Byte.MIN_VALUE))
+                    max = max.max(
+                        ByteVector.fromArray(bytesSpecies, bytes, start + index)
+                            .lanewise(VectorOperators.XOR, Byte.MIN_VALUE)
+                    )
                     index += bytesSpecies.length()
                 }
-                result = ((max.reduceLanes(VectorOperators.MAX).toInt() xor 0x80) and 255).toLong()
+                result = ((max.reduceLanes(VectorOperators.MAX).toInt() xor UNSIGNED_BYTE_SIGN_BIT) and UNSIGNED_BYTE_MASK).toLong()
             }
+
             else -> error("Invalid index component type")
         }
         val size = componentSize(type)
@@ -366,14 +483,16 @@ private object GltfIndexVectors {
 }
 
 fun decodeGltfUri(uri: String): String {
-    val bytes = uri.toByteArray(Charsets.UTF_8)
+    val bytes: MutBytes = uri.toByteArray(Charsets.UTF_8)
     var read = 0
     var write = 0
     while (read < bytes.size) {
-        if (bytes[read].toInt() == 37 && read + 2 < bytes.size) {
-            val high = Character.digit(bytes[read + 1].toInt().toChar(), 16)
-            val low = Character.digit(bytes[read + 2].toInt().toChar(), 16)
-            if (high >= 0 && low >= 0) { bytes[write++] = ((high shl 4) or low).toByte(); read += 3; continue }
+        if (bytes[read].toInt() == URI_ESCAPE_PREFIX && read + URI_ESCAPE_HEX_DIGITS < bytes.size) {
+            val high = Character.digit(bytes[read + 1].toInt().toChar(), HEX_RADIX)
+            val low = Character.digit(bytes[read + URI_ESCAPE_HEX_DIGITS].toInt().toChar(), HEX_RADIX)
+            if (high >= 0 && low >= 0) {
+                bytes[write++] = ((high shl HEX_DIGIT_BITS) or low).toByte(); read += URI_ESCAPE_LENGTH; continue
+            }
         }
         bytes[write++] = bytes[read++]
     }
