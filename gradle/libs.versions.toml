@@ -11,6 +11,7 @@ koverVersion = "0.9.11"
 kspVersion = "2.3.13"
 proguardVersion = "7.10.0"
 versionCatalogPluginVersion = "1.1.2"
+slangVersion = "2026.20"
 
 [libraries]
 jmh-core = { module = "org.openjdk.jmh:jmh-core", version.ref = "jmhVersion" }
@@ -35,6 +36,8 @@ jmh-gradle = { module = "me.champeau.jmh:me.champeau.jmh.gradle.plugin", version
 [plugins]
 internalBenchmark = { id = "com.varlanv.gradle.internal-benchmark-convention-plugin" }
 internalConvention = { id = "com.varlanv.gradle.internal-gradle-convention-plugin" }
+shadersConvention = { id = "com.varlanv.gradle.internal-gradle-slang-plugin" }
+slangBinaryConvention = { id = "com.varlanv.gradle.internal-gradle-slang-binary-plugin" }
 jmh = { id = "me.champeau.jmh", version.ref = "jmhPluginVersion" }
 kotest = { id = "io.kotest", version.ref = "kotestVersion" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlinVersion" }

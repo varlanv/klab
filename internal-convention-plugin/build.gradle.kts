@@ -47,6 +47,14 @@ gradlePlugin {
             id = libs.plugins.internalConvention.get().pluginId
             implementationClass = "com.varlanv.gradle.plugin.InternalKonventionPlugin"
         }
+        create("internalGradleShadersPlugin") {
+            id = libs.plugins.shadersConvention.get().pluginId
+            implementationClass = "com.varlanv.gradle.plugin.SlangShaderPlugin"
+        }
+        create("internalGradleSlangBinaryPlugin") {
+            id = libs.plugins.slangBinaryConvention.get().pluginId
+            implementationClass = "com.varlanv.gradle.plugin.SlangBinaryPlugin"
+        }
     }
 }
 

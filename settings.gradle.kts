@@ -33,13 +33,19 @@ enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 include(
     listOf(
+        // apps
         "apps:main-release",
         "apps:main-dev",
         "apps:main-shared",
+        // libs
         "libs:lang",
         "libs:graphics:renderer",
         "libs:graphics:sdl3",
         "libs:graphics:sdl3-ffi-generated",
+        // shaders
+        "shaders:slang-binary",
+        "shaders:shaders-primitive",
+        // tests
         "testing:common-test",
     )
 )
