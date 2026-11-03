@@ -14,7 +14,9 @@ class App private constructor(private val init: Init) {
     fun start() {
         context(Io(log = init.log)) {
             Arena.ofConfined().use { arena ->
-                Renderer.create().start(gpa = arena, title = "klab")
+                context(arena) {
+                    Renderer.create().start(title = "klab")
+                }
             }
         }
     }

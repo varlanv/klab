@@ -4,3 +4,12 @@ private val emptyArray = emptyArray<Any>()
 
 @Suppress("UNCHECKED_CAST")
 fun <T> stableEmptyArray(): Array<T> = emptyArray as Array<T>
+
+/**
+ * Immutable by contract [kotlin.Array] alias.
+ */
+typealias Array<T> = kotlin.Array<T>
+/**
+ * Mutable by contract [kotlin.Array] alias.
+ */
+typealias MutArray<T> = Array<T>

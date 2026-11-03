@@ -27,7 +27,7 @@ class Sdl3 private constructor(private val gpa: SegmentAllocator) : AutoCloseabl
     fun createGpuDevice(): Sdl3GpuDevice {
         val handle = SDL3.SDL_CreateGPUDevice(SDL3.SDL_GPU_SHADERFORMAT_SPIRV(), false, MemorySegment.NULL)
         check(handle.address() != 0L) { errorMessage("Failed to create GPU device") }
-        return Sdl3GpuDevice(handle, gpa)
+        return Sdl3GpuDevice(handle)
     }
 
     fun ticksNs(): Long = SDL3.SDL_GetTicksNS()

@@ -1,4 +1,4 @@
-package com.zigrawr.lang
+package com.varlanv.klab
 
 import java.lang.invoke.MethodHandles
 import java.lang.invoke.VarHandle

@@ -6,15 +6,15 @@ import java.lang.foreign.SegmentAllocator
 
 class Sdl3GpuDevice internal constructor(
     private var handle: MemorySegment,
-    private val gpa: SegmentAllocator,
 ) : AutoCloseable {
 
+    context(gpa: SegmentAllocator)
     fun claimWindow(window: Sdl3Window): Sdl3GpuSwapchain {
         check(SDL3.SDL_ClaimWindowForGPUDevice(handle, window.handle)) {
             errorMessage("Failed to create window swapchain")
         }
         try {
-            return Sdl3GpuSwapchain(handle, window.handle, gpa)
+            return Sdl3GpuSwapchain(gpa = gpa, device = handle, window = window.handle)
         } catch (failure: Throwable) {
             SDL3.SDL_ReleaseWindowFromGPUDevice(handle, window.handle)
             throw failure
