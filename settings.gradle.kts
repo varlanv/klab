@@ -38,8 +38,8 @@ include(
         "apps:main-shared",
         "libs:lang",
         "libs:graphics:renderer",
-        "libs:graphics:vulkan",
-        "libs:graphics:vulkan-ffi-generated",
+        "libs:graphics:sdl3",
+        "libs:graphics:sdl3-ffi-generated",
         "testing:common-test",
     )
 )

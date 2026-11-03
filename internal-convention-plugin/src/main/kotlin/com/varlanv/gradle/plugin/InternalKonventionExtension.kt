@@ -25,7 +25,7 @@ interface InternalKonventionExtension {
     fun mainAppCommonDependencies(project: Project) {
         val dependencies = project.dependencies
         dependencies.add("implementation", dependencies.project(":libs:graphics:renderer"))
-        dependencies.add("implementation", dependencies.project(":libs:graphics:vulkan"))
+        dependencies.add("implementation", dependencies.project(":libs:graphics:sdl3"))
     }
 
     fun configureBenchmark(project: Project) {
