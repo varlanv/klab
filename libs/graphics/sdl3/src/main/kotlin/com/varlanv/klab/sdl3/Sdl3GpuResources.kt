@@ -17,6 +17,36 @@ enum class Sdl3GpuVertexFormat { Float2, Float3, Float4 }
 
 enum class Sdl3GpuPrimitiveType { Triangles, Lines }
 
+enum class Sdl3GpuFilter { Nearest, Linear }
+
+enum class Sdl3GpuAddressMode { Repeat, MirroredRepeat, ClampToEdge }
+
+class Sdl3GpuSampledTexture internal constructor(
+    internal val device: MemorySegment,
+    internal var handle: MemorySegment,
+    val width: Int,
+    val height: Int,
+    val format: Sdl3GpuTextureFormat,
+) : AutoCloseable {
+
+    val texture: Sdl3GpuTexture
+        get() {
+            checkOpen()
+            return Sdl3GpuTexture(handle)
+        }
+
+    internal fun checkOpen() {
+        check(handle.address() != 0L) { "GPU sampled texture is closed" }
+    }
+
+    override fun close() {
+        if (handle.address() != 0L) {
+            SDL3.SDL_ReleaseGPUTexture(device, handle)
+            handle = MemorySegment.NULL
+        }
+    }
+}
+
 class Sdl3GpuDepthTexture internal constructor(
     internal val device: MemorySegment,
     internal var handle: MemorySegment,

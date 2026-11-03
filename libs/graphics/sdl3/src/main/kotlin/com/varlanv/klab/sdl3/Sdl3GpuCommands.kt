@@ -87,6 +87,33 @@ class Sdl3GpuCopyPass internal constructor(
     context(gpa: SegmentAllocator)
     fun upload(
         source: Sdl3GpuTransferBuffer,
+        destination: Sdl3GpuSampledTexture,
+        sourceOffset: Int = 0,
+        cycle: Boolean = false,
+    ) {
+        command.checkPass(this)
+        source.checkOpen()
+        destination.checkOpen()
+        check(!source.isMapped) { "GPU transfer buffer must be unmapped before upload" }
+        check(source.device.address() == command.device.address())
+        check(destination.device.address() == command.device.address())
+        val size = Math.multiplyExact(Math.multiplyExact(destination.width.toLong(), destination.height.toLong()), 4L)
+        require(sourceOffset >= 0 && size <= source.size.toLong() - sourceOffset)
+        require(sourceOffset % 4 == 0)
+        val location = SDL_GPUTextureTransferInfo.allocate(gpa).fill(0)
+        SDL_GPUTextureTransferInfo.transfer_buffer(location, source.handle)
+        SDL_GPUTextureTransferInfo.offset(location, sourceOffset)
+        val region = SDL_GPUTextureRegion.allocate(gpa).fill(0)
+        SDL_GPUTextureRegion.texture(region, destination.handle)
+        SDL_GPUTextureRegion.w(region, destination.width)
+        SDL_GPUTextureRegion.h(region, destination.height)
+        SDL_GPUTextureRegion.d(region, 1)
+        SDL3.SDL_UploadToGPUTexture(handle, location, region, cycle)
+    }
+
+    context(gpa: SegmentAllocator)
+    fun upload(
+        source: Sdl3GpuTransferBuffer,
         destination: Sdl3GpuBuffer,
         size: Int,
         sourceOffset: Int = 0,
@@ -262,6 +289,13 @@ class Sdl3GpuRenderPass internal constructor(
         require(slot >= 0)
         require(data.isNative && data.byteSize() in 1..Int.MAX_VALUE.toLong())
         SDL3.SDL_PushGPUVertexUniformData(command.handle, slot, data, data.byteSize().toInt())
+    }
+
+    fun pushFragmentUniform(slot: Int, data: MemorySegment) {
+        command.checkPass(this)
+        require(slot >= 0)
+        require(data.isNative && data.byteSize() in 1..Int.MAX_VALUE.toLong())
+        SDL3.SDL_PushGPUFragmentUniformData(command.handle, slot, data, data.byteSize().toInt())
     }
 
     fun drawIndexed(indexCount: Int, firstIndex: Int = 0, vertexOffset: Int = 0) {

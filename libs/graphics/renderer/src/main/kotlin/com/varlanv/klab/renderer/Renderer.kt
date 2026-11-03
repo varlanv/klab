@@ -2,6 +2,7 @@ package com.varlanv.klab.renderer
 
 import com.varlanv.klab.Io
 import com.varlanv.klab.collections.Bytes
+import com.varlanv.klab.glb.GlbModel
 import com.varlanv.klab.sdl3.*
 import java.lang.foreign.SegmentAllocator
 import kotlin.math.ceil
@@ -16,6 +17,7 @@ class Renderer private constructor(
     private val ttf: Sdl3Ttf,
     val text: TextRenderer,
     private val primitives: PrimitiveRenderer,
+    private val models: ModelRenderer,
     val camera: Camera3D,
     val input: Sdl3Input,
 ) : AutoCloseable {
@@ -95,6 +97,17 @@ class Renderer private constructor(
     }
 
     context(gpa: SegmentAllocator)
+    fun uploadModel(source: GlbModel): GpuModel {
+        checkOpen()
+        return models.upload(source)
+    }
+
+    fun drawModel(model: GpuModel, x: Float, y: Float, z: Float, scale: Float = 1f) {
+        checkOpen()
+        models.draw(model = model, x = x, y = y, z = z, scale = scale)
+    }
+
+    context(gpa: SegmentAllocator)
     fun openFont(data: Bytes, pointSize: Float): Sdl3Font {
         checkOpen()
         val font = ttf.openFont(data = data, pointSize = pointSize)
@@ -129,7 +142,7 @@ class Renderer private constructor(
                 primitives.upload(command)
                 val frame = swapchain.acquireFrame(command)
                 if (frame != null) {
-                    val world = primitives.hasWorldGeometry
+                    val world = primitives.hasWorldGeometry || models.hasGeometry
                     if (world) {
                         val target = depth
                         if (target == null || target.width != frame.width || target.height != frame.height) {
@@ -139,6 +152,7 @@ class Renderer private constructor(
                         }
                         frame.beginRenderPass(r = 1f, g = 1f, b = 1f, depth = checkNotNull(depth)).use { pass ->
                             primitives.drawWorld(pass)
+                            models.render(pass)
                         }
                     }
                     frame.beginRenderPass(r = 1f, g = 1f, b = 1f, clear = !world).use { pass ->
@@ -152,6 +166,7 @@ class Renderer private constructor(
             }
         } finally {
             primitives.clear()
+            models.clear()
         }
     }
 
@@ -175,6 +190,7 @@ class Renderer private constructor(
         if (!closed) {
             closed = true
             val resources = ArrayList<AutoCloseable>()
+            resources.add(models)
             resources.add(primitives)
             depth?.let { resources.add(it) }
             resources.add(text)
@@ -194,6 +210,7 @@ class Renderer private constructor(
             var ttf: Sdl3Ttf? = null
             var text: TextRenderer? = null
             var primitives: PrimitiveRenderer? = null
+            var models: ModelRenderer? = null
             try {
                 device = sdl.createGpuDevice()
                 val input = sdl.createInput()
@@ -213,15 +230,22 @@ class Renderer private constructor(
                     shader = resource("/shaders/shaders-primitive/primitive.spv"),
                     camera = camera,
                 )
+                models = ModelRenderer.create(
+                    device = device,
+                    targetFormat = swapchain.textureFormat,
+                    depthFormat = device.depthTextureFormat,
+                    shader = resource("/shaders/shaders-primitive/model.spv"),
+                    camera = camera,
+                )
                 window.setRelativeMouseMode(true)
                 input.discardMouseMotion()
                 return Renderer(
                     sdl = sdl, device = device, window = window, swapchain = swapchain,
-                    ttf = ttf, text = text, primitives = primitives, camera = camera, input = input,
+                    ttf = ttf, text = text, primitives = primitives, models = models, camera = camera, input = input,
                 )
             } catch (failure: Throwable) {
                 closeResources(
-                    resources = listOfNotNull(primitives, text, ttf, swapchain, window, device, sdl),
+                    resources = listOfNotNull(models, primitives, text, ttf, swapchain, window, device, sdl),
                     cause = failure,
                 )
                 throw failure
@@ -235,7 +259,7 @@ class Renderer private constructor(
     }
 }
 
-private fun closeResources(resources: List<AutoCloseable>, cause: Throwable? = null) {
+internal fun closeResources(resources: List<AutoCloseable>, cause: Throwable? = null) {
     var failure = cause
     for (resource in resources) {
         try {

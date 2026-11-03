@@ -1,6 +1,8 @@
 package com.varlanv.klab.glb
 
-import com.varlanv.klab.glb.ffi.*
+import com.varlanv.klab.glb.ffi.Cgltf
+import com.varlanv.klab.glb.ffi.cgltf_node
+import com.varlanv.klab.glb.ffi.cgltf_scene
 import java.lang.foreign.MemorySegment
 import java.lang.foreign.ValueLayout
 
@@ -18,6 +20,7 @@ class GlbNode internal constructor(private val model: GlbModel, private val data
     val name: String? get() = model.read { nativeString(cgltf_node.name(data)) }
     val parentIndex: Int? get() = model.read { model.nodeIndex(cgltf_node.parent(data)) }
     val meshIndex: Int? get() = model.read { model.meshIndex(cgltf_node.mesh(data)) }
+    val hasSkin: Boolean get() = model.read { cgltf_node.skin(data).address() != 0L }
     val childCount: Int get() = model.read { Math.toIntExact(cgltf_node.children_count(data)) }
 
     fun childIndex(index: Int): Int = model.read {

@@ -1,0 +1,4 @@
+Duck
+Copyright 2006 Sony.
+SCEA Shared Source License, Version 1.0; see LICENSE.txt.
+Source: https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/Duck

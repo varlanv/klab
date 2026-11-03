@@ -113,13 +113,39 @@ class Sdl3GpuDevice internal constructor(internal var handle: MemorySegment) : A
     }
 
     context(gpa: SegmentAllocator)
-    fun createSampler(): Sdl3GpuSampler {
+    fun createSampledTexture(width: Int, height: Int, srgb: Boolean = true): Sdl3GpuSampledTexture {
+        checkOpen()
+        require(width > 0 && height > 0)
+        val format = Sdl3GpuTextureFormat(
+            if (srgb) SDL3.SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM_SRGB() else SDL3.SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM(),
+        )
+        val info = SDL_GPUTextureCreateInfo.allocate(gpa).fill(0)
+        SDL_GPUTextureCreateInfo.type(info, SDL3.SDL_GPU_TEXTURETYPE_2D())
+        SDL_GPUTextureCreateInfo.format(info, format.value)
+        SDL_GPUTextureCreateInfo.usage(info, SDL3.SDL_GPU_TEXTUREUSAGE_SAMPLER())
+        SDL_GPUTextureCreateInfo.width(info, width)
+        SDL_GPUTextureCreateInfo.height(info, height)
+        SDL_GPUTextureCreateInfo.layer_count_or_depth(info, 1)
+        SDL_GPUTextureCreateInfo.num_levels(info, 1)
+        SDL_GPUTextureCreateInfo.sample_count(info, SDL3.SDL_GPU_SAMPLECOUNT_1())
+        val texture = SDL3.SDL_CreateGPUTexture(handle, info)
+        check(texture.address() != 0L) { errorMessage("Failed to create GPU sampled texture") }
+        return Sdl3GpuSampledTexture(device = handle, handle = texture, width = width, height = height, format = format)
+    }
+
+    context(gpa: SegmentAllocator)
+    fun createSampler(
+        minFilter: Sdl3GpuFilter = Sdl3GpuFilter.Linear,
+        magFilter: Sdl3GpuFilter = Sdl3GpuFilter.Linear,
+        addressModeU: Sdl3GpuAddressMode = Sdl3GpuAddressMode.ClampToEdge,
+        addressModeV: Sdl3GpuAddressMode = Sdl3GpuAddressMode.ClampToEdge,
+    ): Sdl3GpuSampler {
         checkOpen()
         val info = SDL_GPUSamplerCreateInfo.allocate(gpa).fill(0)
-        SDL_GPUSamplerCreateInfo.min_filter(info, SDL3.SDL_GPU_FILTER_LINEAR())
-        SDL_GPUSamplerCreateInfo.mag_filter(info, SDL3.SDL_GPU_FILTER_LINEAR())
-        SDL_GPUSamplerCreateInfo.address_mode_u(info, SDL3.SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE())
-        SDL_GPUSamplerCreateInfo.address_mode_v(info, SDL3.SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE())
+        SDL_GPUSamplerCreateInfo.min_filter(info, minFilter.nativeValue())
+        SDL_GPUSamplerCreateInfo.mag_filter(info, magFilter.nativeValue())
+        SDL_GPUSamplerCreateInfo.address_mode_u(info, addressModeU.nativeValue())
+        SDL_GPUSamplerCreateInfo.address_mode_v(info, addressModeV.nativeValue())
         SDL_GPUSamplerCreateInfo.address_mode_w(info, SDL3.SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE())
         val sampler = SDL3.SDL_CreateGPUSampler(handle, info)
         check(sampler.address() != 0L) { errorMessage("Failed to create GPU sampler") }
@@ -259,4 +285,15 @@ class Sdl3GpuDevice internal constructor(internal var handle: MemorySegment) : A
             }
         }
     }
+}
+
+private fun Sdl3GpuFilter.nativeValue(): Int = when (this) {
+    Sdl3GpuFilter.Nearest -> SDL3.SDL_GPU_FILTER_NEAREST()
+    Sdl3GpuFilter.Linear -> SDL3.SDL_GPU_FILTER_LINEAR()
+}
+
+private fun Sdl3GpuAddressMode.nativeValue(): Int = when (this) {
+    Sdl3GpuAddressMode.Repeat -> SDL3.SDL_GPU_SAMPLERADDRESSMODE_REPEAT()
+    Sdl3GpuAddressMode.MirroredRepeat -> SDL3.SDL_GPU_SAMPLERADDRESSMODE_MIRRORED_REPEAT()
+    Sdl3GpuAddressMode.ClampToEdge -> SDL3.SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE()
 }

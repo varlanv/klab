@@ -7,7 +7,6 @@ import com.varlanv.klab.collections.MutInts
 import com.varlanv.klab.sdl3.*
 import java.lang.foreign.MemorySegment
 import java.lang.foreign.SegmentAllocator
-import java.lang.foreign.ValueLayout
 
 private const val WORLD_FILL = 0
 private const val WORLD_WIRE = 1
@@ -284,23 +283,7 @@ internal class PrimitiveRenderer private constructor(
     private fun drawLayer(pass: Sdl3GpuRenderPass, world: Boolean) {
         check(uploaded) { "Upload primitive geometry before drawing" }
         val uniforms = gpa.allocate(80, 16).fill(0)
-        uniforms.set(ValueLayout.JAVA_FLOAT, 0L, pass.width.toFloat())
-        uniforms.set(ValueLayout.JAVA_FLOAT, 4L, pass.height.toFloat())
-        uniforms.set(ValueLayout.JAVA_FLOAT, 8L, camera.nearPlane)
-        uniforms.set(ValueLayout.JAVA_FLOAT, 12L, camera.farPlane)
-        uniforms.set(ValueLayout.JAVA_FLOAT, 16L, camera.x)
-        uniforms.set(ValueLayout.JAVA_FLOAT, 20L, camera.y)
-        uniforms.set(ValueLayout.JAVA_FLOAT, 24L, camera.z)
-        uniforms.set(ValueLayout.JAVA_FLOAT, 28L, camera.focal)
-        uniforms.set(ValueLayout.JAVA_FLOAT, 32L, camera.rightX)
-        uniforms.set(ValueLayout.JAVA_FLOAT, 36L, camera.rightY)
-        uniforms.set(ValueLayout.JAVA_FLOAT, 40L, camera.rightZ)
-        uniforms.set(ValueLayout.JAVA_FLOAT, 48L, camera.upX)
-        uniforms.set(ValueLayout.JAVA_FLOAT, 52L, camera.upY)
-        uniforms.set(ValueLayout.JAVA_FLOAT, 56L, camera.upZ)
-        uniforms.set(ValueLayout.JAVA_FLOAT, 64L, camera.forwardX)
-        uniforms.set(ValueLayout.JAVA_FLOAT, 68L, camera.forwardY)
-        uniforms.set(ValueLayout.JAVA_FLOAT, 72L, camera.forwardZ)
+        camera.writeUniforms(destination = uniforms, width = pass.width, height = pass.height)
         pass.pushVertexUniform(slot = 0, data = uniforms)
         mesh.bind(pass)
         var previousKind = -1

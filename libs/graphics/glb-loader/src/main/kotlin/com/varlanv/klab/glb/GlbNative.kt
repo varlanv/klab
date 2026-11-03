@@ -7,8 +7,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.security.DigestOutputStream
 import java.security.MessageDigest
-import java.util.HexFormat
-import java.util.Locale
+import java.util.*
 
 object GlbNative {
 
@@ -38,6 +37,7 @@ object GlbNative {
         val cache = when (platform) {
             "windows" -> System.getenv("LOCALAPPDATA")?.let { Path.of(it) }
                 ?: Path.of(System.getProperty("user.home"), "AppData", "Local")
+
             "macos" -> Path.of(System.getProperty("user.home"), "Library", "Caches")
             else -> System.getenv("XDG_CACHE_HOME")?.takeIf { it.isNotBlank() }?.let { Path.of(it) }
                 ?: Path.of(System.getProperty("user.home"), ".cache")

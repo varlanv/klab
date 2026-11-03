@@ -18,21 +18,39 @@ class GlbMesh internal constructor(private val model: GlbModel, private val data
     val primitiveCount: Int get() = model.read { Math.toIntExact(cgltf_mesh.primitives_count(data)) }
 
     fun primitive(index: Int): GlbPrimitive = model.read {
-        GlbPrimitive(model, element(pointer = cgltf_mesh.primitives(data), count = cgltf_mesh.primitives_count(data), size = cgltf_primitive.sizeof(), index = index))
+        GlbPrimitive(
+            model,
+            element(
+                pointer = cgltf_mesh.primitives(data),
+                count = cgltf_mesh.primitives_count(data),
+                size = cgltf_primitive.sizeof(),
+                index = index
+            )
+        )
     }
 }
 
 class GlbPrimitive internal constructor(private val model: GlbModel, private val data: MemorySegment) {
     val type: GlbPrimitiveType get() = model.read { GlbPrimitiveType.entries[cgltf_primitive.type(data) - 1] }
     val attributeCount: Int get() = model.read { Math.toIntExact(cgltf_primitive.attributes_count(data)) }
+    val morphTargetCount: Int get() = model.read { Math.toIntExact(cgltf_primitive.targets_count(data)) }
     val materialIndex: Int? get() = model.read { model.materialIndex(cgltf_primitive.material(data)) }
-    val indices: GlbAccessor? get() = model.read {
-        val accessor = cgltf_primitive.indices(data)
-        if (accessor.address() == 0L) null else GlbAccessor(model, accessor.reinterpret(cgltf_accessor.sizeof()))
-    }
+    val indices: GlbAccessor?
+        get() = model.read {
+            val accessor = cgltf_primitive.indices(data)
+            if (accessor.address() == 0L) null else GlbAccessor(model, accessor.reinterpret(cgltf_accessor.sizeof()))
+        }
 
     fun attribute(index: Int): GlbAttribute = model.read {
-        GlbAttribute(model, element(pointer = cgltf_primitive.attributes(data), count = cgltf_primitive.attributes_count(data), size = cgltf_attribute.sizeof(), index = index))
+        GlbAttribute(
+            model,
+            element(
+                pointer = cgltf_primitive.attributes(data),
+                count = cgltf_primitive.attributes_count(data),
+                size = cgltf_attribute.sizeof(),
+                index = index
+            )
+        )
     }
 
     fun findAttribute(semantic: GlbAttributeSemantic, set: Int = 0): GlbAccessor? = model.read {
@@ -55,9 +73,10 @@ class GlbAttribute internal constructor(private val model: GlbModel, private val
     val name: String? get() = model.read { nativeString(cgltf_attribute.name(data)) }
     val semantic: GlbAttributeSemantic get() = model.read { GlbAttributeSemantic.entries[cgltf_attribute.type(data) - 1] }
     val set: Int get() = model.read { cgltf_attribute.index(data) }
-    val accessor: GlbAccessor get() = model.read {
-        GlbAccessor(model, cgltf_attribute.data(data).reinterpret(cgltf_accessor.sizeof()))
-    }
+    val accessor: GlbAccessor
+        get() = model.read {
+            GlbAccessor(model, cgltf_attribute.data(data).reinterpret(cgltf_accessor.sizeof()))
+        }
 }
 
 class GlbAccessor internal constructor(private val model: GlbModel, private val data: MemorySegment) {
@@ -67,9 +86,10 @@ class GlbAccessor internal constructor(private val model: GlbModel, private val 
     val normalized: Boolean get() = model.read { cgltf_accessor.normalized(data) != 0 }
     val sparse: Boolean get() = model.read { cgltf_accessor.is_sparse(data) != 0 }
     val strideBytes: Long get() = model.read { cgltf_accessor.stride(data) }
-    val elementSizeBytes: Long get() = model.read {
-        Cgltf.cgltf_calc_size(cgltf_accessor.type(data), cgltf_accessor.component_type(data))
-    }
+    val elementSizeBytes: Long
+        get() = model.read {
+            Cgltf.cgltf_calc_size(cgltf_accessor.type(data), cgltf_accessor.component_type(data))
+        }
 
     fun rawBytes(): MemorySegment? = model.read {
         check(cgltf_accessor.is_sparse(data) == 0) { "Sparse accessors must be unpacked" }
@@ -77,13 +97,18 @@ class GlbAccessor internal constructor(private val model: GlbModel, private val 
         if (view.address() == 0L) return@read null
         val count = cgltf_accessor.count(data)
         val elementSize = Cgltf.cgltf_calc_size(cgltf_accessor.type(data), cgltf_accessor.component_type(data))
-        val size = if (count == 0L) 0L else Math.addExact(Math.multiplyExact(count - 1L, cgltf_accessor.stride(data)), elementSize)
+        val size = if (count == 0L) 0L else Math.addExact(
+            Math.multiplyExact(count - 1L, cgltf_accessor.stride(data)),
+            elementSize
+        )
         model.bufferBytes(view.reinterpret(cgltf_buffer_view.sizeof())).asSlice(cgltf_accessor.offset(data), size)
     }
 
     fun copyFloatsTo(destination: MemorySegment) = model.read {
-        check(cgltf_accessor.is_sparse(data) == 0 || cgltf_accessor.stride(data) ==
-                Cgltf.cgltf_calc_size(cgltf_accessor.type(data), cgltf_accessor.component_type(data))) {
+        check(
+            cgltf_accessor.is_sparse(data) == 0 || cgltf_accessor.stride(data) ==
+                    Cgltf.cgltf_calc_size(cgltf_accessor.type(data), cgltf_accessor.component_type(data))
+        ) {
             "cgltf cannot safely unpack sparse accessors with an interleaved base"
         }
         val components = Cgltf.cgltf_num_components(cgltf_accessor.type(data))
@@ -92,21 +117,35 @@ class GlbAccessor internal constructor(private val model: GlbModel, private val 
         check(Cgltf.cgltf_accessor_unpack_floats(data, destination, count) == count) { "Failed to unpack GLB accessor" }
     }
 
-    fun copyIndicesTo(destination: MemorySegment, componentType: GlbComponentType = GlbComponentType.UnsignedInt) = model.read {
-        require(cgltf_accessor.type(data) == Cgltf.cgltf_type_scalar()) { "Indices must be scalar" }
-        val inputType = cgltf_accessor.component_type(data)
-        require(inputType == Cgltf.cgltf_component_type_r_8u() || inputType == Cgltf.cgltf_component_type_r_16u() ||
-                inputType == Cgltf.cgltf_component_type_r_32u()) { "Indices must use an unsigned integer type" }
-        require(componentType == GlbComponentType.UnsignedByte || componentType == GlbComponentType.UnsignedShort ||
-                componentType == GlbComponentType.UnsignedInt)
-        check(cgltf_accessor.is_sparse(data) == 0) { "Sparse index conversion is not supported by cgltf" }
-        val count = cgltf_accessor.count(data)
-        requireOutput(destination = destination, bytes = Math.multiplyExact(count, componentType.byteSize.toLong()),
-            alignment = componentType.byteSize)
-        check(Cgltf.cgltf_accessor_unpack_indices(data, destination, componentType.byteSize.toLong(), count) == count) {
-            "Cannot unpack GLB indices to ${componentType.name}"
+    fun copyIndicesTo(destination: MemorySegment, componentType: GlbComponentType = GlbComponentType.UnsignedInt) =
+        model.read {
+            require(cgltf_accessor.type(data) == Cgltf.cgltf_type_scalar()) { "Indices must be scalar" }
+            val inputType = cgltf_accessor.component_type(data)
+            require(
+                inputType == Cgltf.cgltf_component_type_r_8u() || inputType == Cgltf.cgltf_component_type_r_16u() ||
+                        inputType == Cgltf.cgltf_component_type_r_32u()
+            ) { "Indices must use an unsigned integer type" }
+            require(
+                componentType == GlbComponentType.UnsignedByte || componentType == GlbComponentType.UnsignedShort ||
+                        componentType == GlbComponentType.UnsignedInt
+            )
+            check(cgltf_accessor.is_sparse(data) == 0) { "Sparse index conversion is not supported by cgltf" }
+            val count = cgltf_accessor.count(data)
+            requireOutput(
+                destination = destination, bytes = Math.multiplyExact(count, componentType.byteSize.toLong()),
+                alignment = componentType.byteSize
+            )
+            check(
+                Cgltf.cgltf_accessor_unpack_indices(
+                    data,
+                    destination,
+                    componentType.byteSize.toLong(),
+                    count
+                ) == count
+            ) {
+                "Cannot unpack GLB indices to ${componentType.name}"
+            }
         }
-    }
 }
 
 class GlbBufferView internal constructor(private val model: GlbModel, private val data: MemorySegment) {

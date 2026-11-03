@@ -29,49 +29,127 @@ class GlbModel internal constructor(
     val skinCount: Int get() = read { Math.toIntExact(cgltf_data.skins_count(handle)) }
     val requiredExtensionCount: Int get() = read { Math.toIntExact(cgltf_data.extensions_required_count(handle)) }
     val usedExtensionCount: Int get() = read { Math.toIntExact(cgltf_data.extensions_used_count(handle)) }
-    val defaultSceneIndex: Int? get() = read {
-        indexOf(pointer = cgltf_data.scene(handle), base = cgltf_data.scenes(handle), count = cgltf_data.scenes_count(handle), size = cgltf_scene.sizeof())
-    }
+    val defaultSceneIndex: Int?
+        get() = read {
+            indexOf(
+                pointer = cgltf_data.scene(handle),
+                base = cgltf_data.scenes(handle),
+                count = cgltf_data.scenes_count(handle),
+                size = cgltf_scene.sizeof()
+            )
+        }
     val generator: String? get() = read { nativeString(cgltf_asset.generator(cgltf_data.asset(handle))) }
 
     fun mesh(index: Int): GlbMesh = read {
-        GlbMesh(this, element(pointer = cgltf_data.meshes(handle), count = cgltf_data.meshes_count(handle), size = cgltf_mesh.sizeof(), index = index))
+        GlbMesh(
+            this,
+            element(
+                pointer = cgltf_data.meshes(handle),
+                count = cgltf_data.meshes_count(handle),
+                size = cgltf_mesh.sizeof(),
+                index = index
+            )
+        )
     }
 
     fun node(index: Int): GlbNode = read {
-        GlbNode(this, element(pointer = cgltf_data.nodes(handle), count = cgltf_data.nodes_count(handle), size = cgltf_node.sizeof(), index = index))
+        GlbNode(
+            this,
+            element(
+                pointer = cgltf_data.nodes(handle),
+                count = cgltf_data.nodes_count(handle),
+                size = cgltf_node.sizeof(),
+                index = index
+            )
+        )
     }
 
     fun scene(index: Int): GlbScene = read {
-        GlbScene(this, element(pointer = cgltf_data.scenes(handle), count = cgltf_data.scenes_count(handle), size = cgltf_scene.sizeof(), index = index))
+        GlbScene(
+            this,
+            element(
+                pointer = cgltf_data.scenes(handle),
+                count = cgltf_data.scenes_count(handle),
+                size = cgltf_scene.sizeof(),
+                index = index
+            )
+        )
     }
 
     fun accessor(index: Int): GlbAccessor = read {
-        GlbAccessor(this, element(pointer = cgltf_data.accessors(handle), count = cgltf_data.accessors_count(handle), size = cgltf_accessor.sizeof(), index = index))
+        GlbAccessor(
+            this,
+            element(
+                pointer = cgltf_data.accessors(handle),
+                count = cgltf_data.accessors_count(handle),
+                size = cgltf_accessor.sizeof(),
+                index = index
+            )
+        )
     }
 
     fun bufferView(index: Int): GlbBufferView = read {
-        GlbBufferView(this, element(pointer = cgltf_data.buffer_views(handle), count = cgltf_data.buffer_views_count(handle), size = cgltf_buffer_view.sizeof(), index = index))
+        GlbBufferView(
+            this,
+            element(
+                pointer = cgltf_data.buffer_views(handle),
+                count = cgltf_data.buffer_views_count(handle),
+                size = cgltf_buffer_view.sizeof(),
+                index = index
+            )
+        )
     }
 
     fun material(index: Int): GlbMaterial = read {
-        GlbMaterial(this, element(pointer = cgltf_data.materials(handle), count = cgltf_data.materials_count(handle), size = cgltf_material.sizeof(), index = index))
+        GlbMaterial(
+            this,
+            element(
+                pointer = cgltf_data.materials(handle),
+                count = cgltf_data.materials_count(handle),
+                size = cgltf_material.sizeof(),
+                index = index
+            )
+        )
     }
 
     fun texture(index: Int): GlbTexture = read {
-        GlbTexture(this, element(pointer = cgltf_data.textures(handle), count = cgltf_data.textures_count(handle), size = cgltf_texture.sizeof(), index = index))
+        GlbTexture(
+            this,
+            element(
+                pointer = cgltf_data.textures(handle),
+                count = cgltf_data.textures_count(handle),
+                size = cgltf_texture.sizeof(),
+                index = index
+            )
+        )
     }
 
     fun image(index: Int): GlbImage = read {
-        GlbImage(this, element(pointer = cgltf_data.images(handle), count = cgltf_data.images_count(handle), size = cgltf_image.sizeof(), index = index))
+        GlbImage(
+            this,
+            element(
+                pointer = cgltf_data.images(handle),
+                count = cgltf_data.images_count(handle),
+                size = cgltf_image.sizeof(),
+                index = index
+            )
+        )
     }
 
     fun requiredExtension(index: Int): String = read {
-        extension(pointer = cgltf_data.extensions_required(handle), count = cgltf_data.extensions_required_count(handle), index = index)
+        extension(
+            pointer = cgltf_data.extensions_required(handle),
+            count = cgltf_data.extensions_required_count(handle),
+            index = index
+        )
     }
 
     fun usedExtension(index: Int): String = read {
-        extension(pointer = cgltf_data.extensions_used(handle), count = cgltf_data.extensions_used_count(handle), index = index)
+        extension(
+            pointer = cgltf_data.extensions_used(handle),
+            count = cgltf_data.extensions_used_count(handle),
+            index = index
+        )
     }
 
     private fun extension(pointer: MemorySegment, count: Long, index: Int): String {
@@ -80,23 +158,48 @@ class GlbModel internal constructor(
     }
 
     internal fun nodeIndex(pointer: MemorySegment): Int? = read {
-        indexOf(pointer = pointer, base = cgltf_data.nodes(handle), count = cgltf_data.nodes_count(handle), size = cgltf_node.sizeof())
+        indexOf(
+            pointer = pointer,
+            base = cgltf_data.nodes(handle),
+            count = cgltf_data.nodes_count(handle),
+            size = cgltf_node.sizeof()
+        )
     }
 
     internal fun meshIndex(pointer: MemorySegment): Int? = read {
-        indexOf(pointer = pointer, base = cgltf_data.meshes(handle), count = cgltf_data.meshes_count(handle), size = cgltf_mesh.sizeof())
+        indexOf(
+            pointer = pointer,
+            base = cgltf_data.meshes(handle),
+            count = cgltf_data.meshes_count(handle),
+            size = cgltf_mesh.sizeof()
+        )
     }
 
     internal fun materialIndex(pointer: MemorySegment): Int? = read {
-        indexOf(pointer = pointer, base = cgltf_data.materials(handle), count = cgltf_data.materials_count(handle), size = cgltf_material.sizeof())
+        indexOf(
+            pointer = pointer,
+            base = cgltf_data.materials(handle),
+            count = cgltf_data.materials_count(handle),
+            size = cgltf_material.sizeof()
+        )
     }
 
     internal fun textureIndex(pointer: MemorySegment): Int? = read {
-        indexOf(pointer = pointer, base = cgltf_data.textures(handle), count = cgltf_data.textures_count(handle), size = cgltf_texture.sizeof())
+        indexOf(
+            pointer = pointer,
+            base = cgltf_data.textures(handle),
+            count = cgltf_data.textures_count(handle),
+            size = cgltf_texture.sizeof()
+        )
     }
 
     internal fun imageIndex(pointer: MemorySegment): Int? = read {
-        indexOf(pointer = pointer, base = cgltf_data.images(handle), count = cgltf_data.images_count(handle), size = cgltf_image.sizeof())
+        indexOf(
+            pointer = pointer,
+            base = cgltf_data.images(handle),
+            count = cgltf_data.images_count(handle),
+            size = cgltf_image.sizeof()
+        )
     }
 
     internal fun bufferBytes(view: MemorySegment): MemorySegment = read {

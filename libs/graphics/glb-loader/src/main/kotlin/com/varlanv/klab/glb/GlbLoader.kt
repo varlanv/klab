@@ -57,9 +57,12 @@ object GlbLoader {
             val extensions = cgltf_data.extensions_required(handle)
             var extension = 0L
             while (extension < cgltf_data.extensions_required_count(handle)) {
-                val name = extensions.getAtIndex(ValueLayout.ADDRESS, extension).reinterpret(Long.MAX_VALUE).getString(0L)
-                require(name != "KHR_draco_mesh_compression" && name != "EXT_meshopt_compression" &&
-                        name != "KHR_meshopt_compression") { "GLB geometry requires an additional decoder: $name" }
+                val name =
+                    extensions.getAtIndex(ValueLayout.ADDRESS, extension).reinterpret(Long.MAX_VALUE).getString(0L)
+                require(
+                    name != "KHR_draco_mesh_compression" && name != "EXT_meshopt_compression" &&
+                            name != "KHR_meshopt_compression"
+                ) { "GLB geometry requires an additional decoder: $name" }
                 extension++
             }
             checkResult(Cgltf.cgltf_validate(handle), "validate")
@@ -78,8 +81,10 @@ object GlbLoader {
             val bufferPointer = cgltf_buffer_view.buffer(view)
             require(bufferPointer.address() != 0L) { "GLB buffer view has no buffer" }
             val buffer = bufferPointer.reinterpret(cgltf_buffer.sizeof())
-            requireRange(offset = cgltf_buffer_view.offset(view), length = cgltf_buffer_view.size(view),
-                available = cgltf_buffer.size(buffer))
+            requireRange(
+                offset = cgltf_buffer_view.offset(view), length = cgltf_buffer_view.size(view),
+                available = cgltf_buffer.size(buffer)
+            )
             index++
         }
         val accessors = cgltf_data.accessors(data)
@@ -88,7 +93,8 @@ object GlbLoader {
             val accessor = accessors.asSlice(index * cgltf_accessor.sizeof(), cgltf_accessor.sizeof())
             val count = cgltf_accessor.count(accessor)
             val componentSize = Cgltf.cgltf_component_size(cgltf_accessor.component_type(accessor))
-            val elementSize = Cgltf.cgltf_calc_size(cgltf_accessor.type(accessor), cgltf_accessor.component_type(accessor))
+            val elementSize =
+                Cgltf.cgltf_calc_size(cgltf_accessor.type(accessor), cgltf_accessor.component_type(accessor))
             val stride = cgltf_accessor.stride(accessor)
             require(count > 0L && componentSize > 0L && elementSize > 0L && stride >= elementSize && stride % componentSize == 0L) {
                 "Invalid GLB accessor layout"
@@ -97,15 +103,22 @@ object GlbLoader {
             if (pointer.address() != 0L) {
                 val view = pointer.reinterpret(cgltf_buffer_view.sizeof())
                 val bytes = Math.addExact(Math.multiplyExact(count - 1L, stride), elementSize)
-                requireViewRange(view = view, offset = cgltf_accessor.offset(accessor), length = bytes, alignment = componentSize)
+                requireViewRange(
+                    view = view,
+                    offset = cgltf_accessor.offset(accessor),
+                    length = bytes,
+                    alignment = componentSize
+                )
             }
             if (cgltf_accessor.is_sparse(accessor) != 0) {
                 val sparse = cgltf_accessor.sparse(accessor)
                 val sparseCount = cgltf_accessor_sparse.count(sparse)
                 require(sparseCount > 0L && sparseCount <= count) { "Invalid GLB sparse accessor count" }
                 val type = cgltf_accessor_sparse.indices_component_type(sparse)
-                require(type == Cgltf.cgltf_component_type_r_8u() || type == Cgltf.cgltf_component_type_r_16u() ||
-                        type == Cgltf.cgltf_component_type_r_32u()) { "Invalid sparse index type" }
+                require(
+                    type == Cgltf.cgltf_component_type_r_8u() || type == Cgltf.cgltf_component_type_r_16u() ||
+                            type == Cgltf.cgltf_component_type_r_32u()
+                ) { "Invalid sparse index type" }
                 val indexSize = Cgltf.cgltf_component_size(type)
                 val indexView = cgltf_accessor_sparse.indices_buffer_view(sparse)
                 val valuesView = cgltf_accessor_sparse.values_buffer_view(sparse)
@@ -128,7 +141,8 @@ object GlbLoader {
     private fun requireViewRange(view: MemorySegment, offset: Long, length: Long, alignment: Long) {
         requireRange(offset = offset, length = length, available = cgltf_buffer_view.size(view))
         val buffer = cgltf_buffer_view.buffer(view).reinterpret(cgltf_buffer.sizeof())
-        val address = Math.addExact(cgltf_buffer.data(buffer).address(), Math.addExact(cgltf_buffer_view.offset(view), offset))
+        val address =
+            Math.addExact(cgltf_buffer.data(buffer).address(), Math.addExact(cgltf_buffer_view.offset(view), offset))
         require(address % alignment == 0L) { "Unaligned GLB accessor data" }
     }
 

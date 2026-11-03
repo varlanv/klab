@@ -1,5 +1,7 @@
 package com.varlanv.klab.renderer
 
+import java.lang.foreign.MemorySegment
+import java.lang.foreign.ValueLayout
 import kotlin.math.asin
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -68,6 +70,28 @@ class Camera3D(
             farPlane = this.farPlane,
         )
         setRotation(yawRadians = this.yawRadians, pitchRadians = this.pitchRadians)
+    }
+
+    internal fun writeUniforms(destination: MemorySegment, width: Int, height: Int) {
+        require(width > 0 && height > 0)
+        destination.asSlice(0, 80).fill(0)
+        destination.set(ValueLayout.JAVA_FLOAT, 0L, width.toFloat())
+        destination.set(ValueLayout.JAVA_FLOAT, 4L, height.toFloat())
+        destination.set(ValueLayout.JAVA_FLOAT, 8L, nearPlane)
+        destination.set(ValueLayout.JAVA_FLOAT, 12L, farPlane)
+        destination.set(ValueLayout.JAVA_FLOAT, 16L, x)
+        destination.set(ValueLayout.JAVA_FLOAT, 20L, y)
+        destination.set(ValueLayout.JAVA_FLOAT, 24L, z)
+        destination.set(ValueLayout.JAVA_FLOAT, 28L, focal)
+        destination.set(ValueLayout.JAVA_FLOAT, 32L, rightX)
+        destination.set(ValueLayout.JAVA_FLOAT, 36L, rightY)
+        destination.set(ValueLayout.JAVA_FLOAT, 40L, rightZ)
+        destination.set(ValueLayout.JAVA_FLOAT, 48L, upX)
+        destination.set(ValueLayout.JAVA_FLOAT, 52L, upY)
+        destination.set(ValueLayout.JAVA_FLOAT, 56L, upZ)
+        destination.set(ValueLayout.JAVA_FLOAT, 64L, forwardX)
+        destination.set(ValueLayout.JAVA_FLOAT, 68L, forwardY)
+        destination.set(ValueLayout.JAVA_FLOAT, 72L, forwardZ)
     }
 
     fun setPosition(x: Float, y: Float, z: Float) {

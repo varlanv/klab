@@ -78,6 +78,7 @@ class Sdl3 private constructor(private val event: MemorySegment) : AutoCloseable
                     Sdl3Event.Other
                 }
             }
+
             SDL3.SDL_EVENT_MOUSE_BUTTON_DOWN() -> {
                 if (SDL_MouseButtonEvent.button(event).toInt() == SDL3.SDL_BUTTON_LEFT()) {
                     Sdl3Event.LeftMousePressed
@@ -85,6 +86,7 @@ class Sdl3 private constructor(private val event: MemorySegment) : AutoCloseable
                     Sdl3Event.Other
                 }
             }
+
             else -> Sdl3Event.Other
         }
     }

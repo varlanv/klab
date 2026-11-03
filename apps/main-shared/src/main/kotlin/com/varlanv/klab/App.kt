@@ -1,6 +1,8 @@
 package com.varlanv.klab
 
+import com.varlanv.klab.glb.GlbLoader
 import com.varlanv.klab.log.Log
+import com.varlanv.klab.renderer.GpuModel
 import com.varlanv.klab.renderer.FpsOverlay
 import com.varlanv.klab.renderer.FlyCameraController
 import com.varlanv.klab.renderer.Renderer
@@ -18,12 +20,13 @@ class App private constructor(private val init: Init) {
             Arena.ofConfined().use { arena ->
                 context(arena) {
                     Renderer.create(title = "klab").use { renderer ->
+                        val duck = loadDuck(renderer)
                         val fontData = checkNotNull(App::class.java.getResourceAsStream("/fonts/LiberationMono-Regular.ttf"))
                             .use { it.readAllBytes() }
                         renderer.openFont(data = fontData, pointSize = 20f).use { font ->
                             renderer.text.createText(font = font, text = "FPS: --").use { text ->
                                 text.setPosition(x = 16f, y = 16f)
-                                runLoop(renderer = renderer, fps = FpsOverlay(text))
+                                runLoop(renderer = renderer, fps = FpsOverlay(text), duck = duck)
                             }
                         }
                     }
@@ -32,8 +35,18 @@ class App private constructor(private val init: Init) {
         }
     }
 
+    private fun loadDuck(renderer: Renderer): GpuModel {
+        return Arena.ofConfined().use { loading ->
+            context(loading) {
+                val data = checkNotNull(App::class.java.getResourceAsStream("/assets/models/duck/Duck.glb"))
+                    .use { it.readAllBytes() }
+                GlbLoader.load(data).use { source -> renderer.uploadModel(source) }
+            }
+        }
+    }
+
     context(io: Io)
-    private fun runLoop(renderer: Renderer, fps: FpsOverlay) {
+    private fun runLoop(renderer: Renderer, fps: FpsOverlay, duck: GpuModel) {
         val camera = FlyCameraController(renderer.camera)
         var previousFrame = renderer.ticksNs()
         while (renderer.pollEvents()) {
@@ -57,6 +70,7 @@ class App private constructor(private val init: Init) {
                 red = 0.2f, green = 0.45f, blue = 0.85f,
                 fill = true,
             )
+            renderer.drawModel(model = duck, x = -2f, y = -1.1f, z = 0f)
             renderer.drawRectangle(
                 x = 360f, y = 310f, width = 160f, height = 100f,
                 red = 0.9f, green = 0.3f, blue = 0.2f, alpha = 0.8f,
