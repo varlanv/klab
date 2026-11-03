@@ -35,7 +35,9 @@ import kotlin.math.max
  */
 abstract class BaseSpec(body: ShouldSpec.() -> Unit) : ShouldSpec({
     isolationMode = IsolationMode.SingleInstance
-    testExecutionMode = TestExecutionMode.LimitedConcurrency(max(1, Runtime.getRuntime().availableProcessors() - 1))
+    testExecutionMode = limitedConcurrency
 
     body()
 })
+
+val limitedConcurrency = TestExecutionMode.LimitedConcurrency(max(1, Runtime.getRuntime().availableProcessors() - 1))
