@@ -30,6 +30,7 @@ ksp-aaEmbeddable = { module = "com.google.devtools.ksp:symbol-processing-aa-embe
 ksp-api = { module = "com.google.devtools.ksp:symbol-processing-api", version.ref = "kspVersion" }
 ksp-commonDeps = { module = "com.google.devtools.ksp:symbol-processing-common-deps", version.ref = "kspVersion" }
 proguard-gradle = { module = "com.guardsquare:proguard-gradle", version.ref = "proguardVersion" }
+jmh-gradle = { module = "me.champeau.jmh:me.champeau.jmh.gradle.plugin", version.ref = "jmhPluginVersion" }
 
 [plugins]
 internalBenchmark = { id = "com.varlanv.gradle.internal-benchmark-convention-plugin" }

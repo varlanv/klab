@@ -30,6 +30,7 @@ repositories {
 }
 
 dependencies {
+    implementation(libs.jmh.gradle)
     implementation(libs.kotlin.gradle.allopen)
     implementation(libs.kotlin.gradle.benchmark)
     implementation(libs.kotlin.gradle.kover)
