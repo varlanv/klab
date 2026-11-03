@@ -1,4 +1,4 @@
-package com.varlanv.klab.graphics.sdl3
+package com.varlanv.klab.sdl3
 
 //expect class VkBindings : AutoCloseable {
 //}

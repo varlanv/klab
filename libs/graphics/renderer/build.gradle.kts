@@ -4,4 +4,5 @@ plugins {
 
 dependencies {
     implementation(projects.libs.lang)
+    implementation(projects.libs.graphics.sdl3)
 }
