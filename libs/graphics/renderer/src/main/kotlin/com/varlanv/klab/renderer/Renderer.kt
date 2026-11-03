@@ -16,12 +16,27 @@ class Renderer private constructor(
     private val ttf: Sdl3Ttf,
     val text: TextRenderer,
     private val primitives: PrimitiveRenderer,
+    val camera: Camera3D,
+    val input: Sdl3Input,
 ) : AutoCloseable {
 
     private val fonts = ArrayList<Sdl3Font>()
     private var closed = false
     private var previousRefreshRate = 0.0
     private var depth: Sdl3GpuDepthTexture? = null
+
+    var mouseCaptured: Boolean
+        get() {
+            checkOpen()
+            return window.relativeMouseMode && window.hasInputFocus
+        }
+        set(value) {
+            checkOpen()
+            if (window.relativeMouseMode != value) {
+                window.setRelativeMouseMode(value)
+                input.discardMouseMotion()
+            }
+        }
 
     fun drawRectangle(
         x: Float,
@@ -61,6 +76,24 @@ class Renderer private constructor(
         )
     }
 
+    fun drawPlane(
+        x: Float,
+        y: Float,
+        z: Float,
+        width: Float,
+        length: Float,
+        red: Float,
+        green: Float,
+        blue: Float,
+        alpha: Float = 1f,
+    ) {
+        checkOpen()
+        primitives.drawPlane(
+            x = x, y = y, z = z, width = width, length = length,
+            red = red, green = green, blue = blue, alpha = alpha,
+        )
+    }
+
     context(gpa: SegmentAllocator)
     fun openFont(data: Bytes, pointSize: Float): Sdl3Font {
         checkOpen()
@@ -74,7 +107,9 @@ class Renderer private constructor(
         while (true) {
             when (sdl.pollEvent() ?: return true) {
                 Sdl3Event.Quit, Sdl3Event.WindowCloseRequested -> return false
-                Sdl3Event.Other -> Unit
+                Sdl3Event.EscapePressed, Sdl3Event.WindowFocusLost -> mouseCaptured = false
+                Sdl3Event.LeftMousePressed -> if (window.hasInputFocus) mouseCaptured = true
+                Sdl3Event.WindowFocusGained, Sdl3Event.Other -> Unit
             }
         }
     }
@@ -94,8 +129,8 @@ class Renderer private constructor(
                 primitives.upload(command)
                 val frame = swapchain.acquireFrame(command)
                 if (frame != null) {
-                    val cubes = primitives.hasCubes
-                    if (cubes) {
+                    val world = primitives.hasWorldGeometry
+                    if (world) {
                         val target = depth
                         if (target == null || target.width != frame.width || target.height != frame.height) {
                             val replacement = device.createDepthTexture(width = frame.width, height = frame.height)
@@ -103,10 +138,10 @@ class Renderer private constructor(
                             depth = replacement
                         }
                         frame.beginRenderPass(r = 1f, g = 1f, b = 1f, depth = checkNotNull(depth)).use { pass ->
-                            primitives.drawCubes(pass)
+                            primitives.drawWorld(pass)
                         }
                     }
-                    frame.beginRenderPass(r = 1f, g = 1f, b = 1f, clear = !cubes).use { pass ->
+                    frame.beginRenderPass(r = 1f, g = 1f, b = 1f, clear = !world).use { pass ->
                         primitives.drawRectangles(pass)
                         text.draw(pass)
                     }
@@ -161,6 +196,8 @@ class Renderer private constructor(
             var primitives: PrimitiveRenderer? = null
             try {
                 device = sdl.createGpuDevice()
+                val input = sdl.createInput()
+                val camera = Camera3D()
                 window = sdl.createWindow(title = title, width = 1280, height = 720)
                 swapchain = device.claimWindow(window)
                 ttf = Sdl3Ttf.init()
@@ -174,10 +211,13 @@ class Renderer private constructor(
                     targetFormat = swapchain.textureFormat,
                     depthFormat = device.depthTextureFormat,
                     shader = resource("/shaders/shaders-primitive/primitive.spv"),
+                    camera = camera,
                 )
+                window.setRelativeMouseMode(true)
+                input.discardMouseMotion()
                 return Renderer(
                     sdl = sdl, device = device, window = window, swapchain = swapchain,
-                    ttf = ttf, text = text, primitives = primitives,
+                    ttf = ttf, text = text, primitives = primitives, camera = camera, input = input,
                 )
             } catch (failure: Throwable) {
                 closeResources(

@@ -6,7 +6,31 @@ import java.lang.foreign.MemorySegment
 
 class Sdl3Window internal constructor(internal var handle: MemorySegment) : AutoCloseable {
 
+    val relativeMouseMode: Boolean
+        get() {
+            checkOpen()
+            return SDL3.SDL_GetWindowRelativeMouseMode(handle)
+        }
+
+    val hasInputFocus: Boolean
+        get() {
+            checkOpen()
+            return (SDL3.SDL_GetWindowFlags(handle) and SDL3.SDL_WINDOW_INPUT_FOCUS()) != 0L
+        }
+
+    internal fun checkOpen() {
+        check(handle.address() != 0L) { "Window is closed" }
+    }
+
+    fun setRelativeMouseMode(enabled: Boolean) {
+        checkOpen()
+        check(SDL3.SDL_SetWindowRelativeMouseMode(handle, enabled)) {
+            errorMessage("Failed to change relative mouse mode")
+        }
+    }
+
     fun currentDisplayRefreshRate(): Double {
+        checkOpen()
         val display = SDL3.SDL_GetDisplayForWindow(handle)
         check(display != 0) { errorMessage("Failed to find window display") }
         val mode = SDL3.SDL_GetCurrentDisplayMode(display)

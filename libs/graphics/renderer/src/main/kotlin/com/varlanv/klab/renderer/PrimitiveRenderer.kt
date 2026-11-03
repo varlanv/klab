@@ -8,11 +8,9 @@ import com.varlanv.klab.sdl3.*
 import java.lang.foreign.MemorySegment
 import java.lang.foreign.SegmentAllocator
 import java.lang.foreign.ValueLayout
-import kotlin.math.sqrt
-import kotlin.math.tan
 
-private const val CUBE_FILL = 0
-private const val CUBE_WIRE = 1
+private const val WORLD_FILL = 0
+private const val WORLD_WIRE = 1
 private const val RECTANGLE_FILL = 2
 private const val RECTANGLE_WIRE = 3
 private const val VERTEX_FLOATS = 7
@@ -35,10 +33,11 @@ private val primitiveAttributes = listOf(
 
 internal class PrimitiveRenderer private constructor(
     device: Sdl3GpuDevice,
-    private val cubeFill: Sdl3GpuGraphicsPipeline,
-    private val cubeWire: Sdl3GpuGraphicsPipeline,
+    private val worldFill: Sdl3GpuGraphicsPipeline,
+    private val worldWire: Sdl3GpuGraphicsPipeline,
     private val rectangleFill: Sdl3GpuGraphicsPipeline,
     private val rectangleWire: Sdl3GpuGraphicsPipeline,
+    private val camera: Camera3D,
 ) : AutoCloseable {
 
     private val mesh = MeshBuffers(device)
@@ -53,19 +52,7 @@ internal class PrimitiveRenderer private constructor(
     private var uploaded = false
     private var closed = false
 
-    private val forwardLength = sqrt(61f)
-    private val forwardX = -4f / forwardLength
-    private val forwardY = -3f / forwardLength
-    private val forwardZ = -6f / forwardLength
-    private val rightLength = sqrt(forwardX * forwardX + forwardZ * forwardZ)
-    private val rightX = -forwardZ / rightLength
-    private val rightZ = forwardX / rightLength
-    private val upX = -rightZ * forwardY
-    private val upY = rightZ * forwardX - rightX * forwardZ
-    private val upZ = rightX * forwardY
-    private val focal = (1.0 / tan(Math.PI / 8.0)).toFloat()
-
-    var hasCubes = false
+    var hasWorldGeometry = false
         private set
     var hasRectangles = false
         private set
@@ -173,8 +160,42 @@ internal class PrimitiveRenderer private constructor(
             }
             for (index in cubeEdges.indices) indices[indexCount++] = base + cubeEdges[index]
         }
-        record(kind = if (fill) CUBE_FILL else CUBE_WIRE, firstIndex = firstIndex)
-        hasCubes = true
+        record(kind = if (fill) WORLD_FILL else WORLD_WIRE, firstIndex = firstIndex)
+        hasWorldGeometry = true
+    }
+
+    fun drawPlane(
+        x: Float,
+        y: Float,
+        z: Float,
+        width: Float,
+        length: Float,
+        red: Float,
+        green: Float,
+        blue: Float,
+        alpha: Float = 1f,
+    ) {
+        checkCanEnqueue()
+        require(x.isFinite() && y.isFinite() && z.isFinite())
+        require(width.isFinite() && length.isFinite() && width > 0f && length > 0f)
+        require(red >= 0f && red <= 1f && green >= 0f && green <= 1f)
+        require(blue >= 0f && blue <= 1f && alpha >= 0f && alpha <= 1f)
+        val minX = x - width * 0.5f
+        val maxX = x + width * 0.5f
+        val minZ = z - length * 0.5f
+        val maxZ = z + length * 0.5f
+        require(minX.isFinite() && maxX.isFinite() && minZ.isFinite() && maxZ.isFinite())
+        if (alpha == 0f) return
+        reserve(addVertices = 4, addIndices = 6)
+        val base = vertexCount
+        val firstIndex = indexCount
+        vertex(x = minX, y = y, z = minZ, red = red, green = green, blue = blue, alpha = alpha)
+        vertex(x = minX, y = y, z = maxZ, red = red, green = green, blue = blue, alpha = alpha)
+        vertex(x = maxX, y = y, z = maxZ, red = red, green = green, blue = blue, alpha = alpha)
+        vertex(x = maxX, y = y, z = minZ, red = red, green = green, blue = blue, alpha = alpha)
+        quad(base)
+        record(kind = WORLD_FILL, firstIndex = firstIndex)
+        hasWorldGeometry = true
     }
 
     private fun reserve(addVertices: Int, addIndices: Int) {
@@ -248,48 +269,49 @@ internal class PrimitiveRenderer private constructor(
     }
 
     context(gpa: SegmentAllocator)
-    fun drawCubes(pass: Sdl3GpuRenderPass) {
+    fun drawWorld(pass: Sdl3GpuRenderPass) {
         checkOpen()
-        if (hasCubes) drawLayer(pass = pass, cubes = true)
+        if (hasWorldGeometry) drawLayer(pass = pass, world = true)
     }
 
     context(gpa: SegmentAllocator)
     fun drawRectangles(pass: Sdl3GpuRenderPass) {
         checkOpen()
-        if (hasRectangles) drawLayer(pass = pass, cubes = false)
+        if (hasRectangles) drawLayer(pass = pass, world = false)
     }
 
     context(gpa: SegmentAllocator)
-    private fun drawLayer(pass: Sdl3GpuRenderPass, cubes: Boolean) {
+    private fun drawLayer(pass: Sdl3GpuRenderPass, world: Boolean) {
         check(uploaded) { "Upload primitive geometry before drawing" }
         val uniforms = gpa.allocate(80, 16).fill(0)
         uniforms.set(ValueLayout.JAVA_FLOAT, 0L, pass.width.toFloat())
         uniforms.set(ValueLayout.JAVA_FLOAT, 4L, pass.height.toFloat())
-        uniforms.set(ValueLayout.JAVA_FLOAT, 8L, 0.1f)
-        uniforms.set(ValueLayout.JAVA_FLOAT, 12L, 100f)
-        uniforms.set(ValueLayout.JAVA_FLOAT, 16L, 4f)
-        uniforms.set(ValueLayout.JAVA_FLOAT, 20L, 3f)
-        uniforms.set(ValueLayout.JAVA_FLOAT, 24L, 6f)
-        uniforms.set(ValueLayout.JAVA_FLOAT, 28L, focal)
-        uniforms.set(ValueLayout.JAVA_FLOAT, 32L, rightX)
-        uniforms.set(ValueLayout.JAVA_FLOAT, 40L, rightZ)
-        uniforms.set(ValueLayout.JAVA_FLOAT, 48L, upX)
-        uniforms.set(ValueLayout.JAVA_FLOAT, 52L, upY)
-        uniforms.set(ValueLayout.JAVA_FLOAT, 56L, upZ)
-        uniforms.set(ValueLayout.JAVA_FLOAT, 64L, forwardX)
-        uniforms.set(ValueLayout.JAVA_FLOAT, 68L, forwardY)
-        uniforms.set(ValueLayout.JAVA_FLOAT, 72L, forwardZ)
+        uniforms.set(ValueLayout.JAVA_FLOAT, 8L, camera.nearPlane)
+        uniforms.set(ValueLayout.JAVA_FLOAT, 12L, camera.farPlane)
+        uniforms.set(ValueLayout.JAVA_FLOAT, 16L, camera.x)
+        uniforms.set(ValueLayout.JAVA_FLOAT, 20L, camera.y)
+        uniforms.set(ValueLayout.JAVA_FLOAT, 24L, camera.z)
+        uniforms.set(ValueLayout.JAVA_FLOAT, 28L, camera.focal)
+        uniforms.set(ValueLayout.JAVA_FLOAT, 32L, camera.rightX)
+        uniforms.set(ValueLayout.JAVA_FLOAT, 36L, camera.rightY)
+        uniforms.set(ValueLayout.JAVA_FLOAT, 40L, camera.rightZ)
+        uniforms.set(ValueLayout.JAVA_FLOAT, 48L, camera.upX)
+        uniforms.set(ValueLayout.JAVA_FLOAT, 52L, camera.upY)
+        uniforms.set(ValueLayout.JAVA_FLOAT, 56L, camera.upZ)
+        uniforms.set(ValueLayout.JAVA_FLOAT, 64L, camera.forwardX)
+        uniforms.set(ValueLayout.JAVA_FLOAT, 68L, camera.forwardY)
+        uniforms.set(ValueLayout.JAVA_FLOAT, 72L, camera.forwardZ)
         pass.pushVertexUniform(slot = 0, data = uniforms)
         mesh.bind(pass)
         var previousKind = -1
         for (index in 0 until commandCount) {
             val kind = kinds[index]
-            if ((kind <= CUBE_WIRE) != cubes) continue
+            if ((kind <= WORLD_WIRE) != world) continue
             if (kind != previousKind) {
                 pass.bindPipeline(
                     when (kind) {
-                        CUBE_FILL -> cubeFill
-                        CUBE_WIRE -> cubeWire
+                        WORLD_FILL -> worldFill
+                        WORLD_WIRE -> worldWire
                         RECTANGLE_FILL -> rectangleFill
                         RECTANGLE_WIRE -> rectangleWire
                         else -> error("Unknown primitive kind: $kind")
@@ -306,7 +328,7 @@ internal class PrimitiveRenderer private constructor(
         vertexCount = 0
         indexCount = 0
         commandCount = 0
-        hasCubes = false
+        hasWorldGeometry = false
         hasRectangles = false
         uploaded = false
     }
@@ -326,8 +348,8 @@ internal class PrimitiveRenderer private constructor(
             mesh.close()
             rectangleWire.close()
             rectangleFill.close()
-            cubeWire.close()
-            cubeFill.close()
+            worldWire.close()
+            worldFill.close()
         }
     }
 
@@ -338,9 +360,10 @@ internal class PrimitiveRenderer private constructor(
             targetFormat: Sdl3GpuTextureFormat,
             depthFormat: Sdl3GpuTextureFormat,
             shader: Bytes,
+            camera: Camera3D,
         ): PrimitiveRenderer {
-            var cubeFill: Sdl3GpuGraphicsPipeline? = null
-            var cubeWire: Sdl3GpuGraphicsPipeline? = null
+            var worldFill: Sdl3GpuGraphicsPipeline? = null
+            var worldWire: Sdl3GpuGraphicsPipeline? = null
             var rectangleFill: Sdl3GpuGraphicsPipeline? = null
             var rectangleWire: Sdl3GpuGraphicsPipeline? = null
             try {
@@ -351,11 +374,11 @@ internal class PrimitiveRenderer private constructor(
                         code = shader, entrypoint = "vertex3D", stage = Sdl3GpuShaderStage.Vertex,
                         uniformBufferCount = 1,
                     ).use { vertex ->
-                        cubeFill = createPipeline(
+                        worldFill = createPipeline(
                             device = device, vertex = vertex, fragment = fragment, targetFormat = targetFormat,
                             depthFormat = depthFormat, primitiveType = Sdl3GpuPrimitiveType.Triangles,
                         )
-                        cubeWire = createPipeline(
+                        worldWire = createPipeline(
                             device = device, vertex = vertex, fragment = fragment, targetFormat = targetFormat,
                             depthFormat = depthFormat, primitiveType = Sdl3GpuPrimitiveType.Lines,
                         )
@@ -376,16 +399,17 @@ internal class PrimitiveRenderer private constructor(
                 }
                 return PrimitiveRenderer(
                     device = device,
-                    cubeFill = checkNotNull(cubeFill),
-                    cubeWire = checkNotNull(cubeWire),
+                    worldFill = checkNotNull(worldFill),
+                    worldWire = checkNotNull(worldWire),
                     rectangleFill = checkNotNull(rectangleFill),
                     rectangleWire = checkNotNull(rectangleWire),
+                    camera = camera,
                 )
             } catch (failure: Throwable) {
                 rectangleWire?.close()
                 rectangleFill?.close()
-                cubeWire?.close()
-                cubeFill?.close()
+                worldWire?.close()
+                worldFill?.close()
                 throw failure
             }
         }

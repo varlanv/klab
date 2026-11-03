@@ -2,6 +2,7 @@ package com.varlanv.klab
 
 import com.varlanv.klab.log.Log
 import com.varlanv.klab.renderer.FpsOverlay
+import com.varlanv.klab.renderer.FlyCameraController
 import com.varlanv.klab.renderer.Renderer
 import java.lang.foreign.Arena
 
@@ -33,9 +34,23 @@ class App private constructor(private val init: Init) {
 
     context(io: Io)
     private fun runLoop(renderer: Renderer, fps: FpsOverlay) {
+        val camera = FlyCameraController(renderer.camera)
+        var previousFrame = renderer.ticksNs()
         while (renderer.pollEvents()) {
             val frameStart = renderer.ticksNs()
+            val deltaSeconds = ((frameStart - previousFrame) / 1_000_000_000.0).toFloat()
+            previousFrame = frameStart
             fps.update(frameStart)
+            for (row in 0 until 20) {
+                for (column in 0 until 20) {
+                    val shade = if ((row + column) % 2 == 0) 0.38f else 0.5f
+                    renderer.drawPlane(
+                        x = column * 2f - 19f, y = -1f, z = row * 2f - 19f,
+                        width = 2f, length = 2f,
+                        red = shade, green = shade, blue = shade,
+                    )
+                }
+            }
             renderer.drawCube(
                 x = 0.6f, y = 0f, z = 0f,
                 width = 2f, height = 2f, length = 2f,
@@ -49,6 +64,10 @@ class App private constructor(private val init: Init) {
             )
             val presented = Arena.ofConfined().use { scratch ->
                 context(scratch) {
+                    renderer.input.update()
+                    if (renderer.mouseCaptured) {
+                        camera.update(input = renderer.input, deltaSeconds = deltaSeconds)
+                    }
                     renderer.renderFrame()
                 }
             }
