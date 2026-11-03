@@ -1,0 +1,79 @@
+@file:Suppress("NOTHING_TO_INLINE")
+
+package com.varlanv.klab.bin
+
+import com.varlanv.klab.collections.MutBytes
+import kotlin.math.abs
+
+@JvmInline
+value class DataSize @PublishedApi internal constructor(val bytes: Int) {
+    init {
+        require(bytes >= 0) { "DataSize should be positive or zero - [ $bytes ]" }
+    }
+
+    inline operator fun plus(bytes: Int): DataSize = DataSize(Math.addExact(this.bytes, bytes))
+
+    inline operator fun plus(other: DataSize): DataSize = DataSize(Math.addExact(this.bytes, other.bytes))
+
+    override fun toString(): String {
+        val magnitude = abs(bytes.toLong())
+
+        if (magnitude < KIB) {
+            return "${bytes}B"
+        }
+
+        val readable = when {
+            magnitude < MIB -> "${format(magnitude = magnitude, unit = KIB)}KiB"
+            magnitude < GIB -> "${format(magnitude = magnitude, unit = MIB)}MiB"
+            else -> "${format(magnitude = magnitude, unit = GIB)}GiB"
+        }
+
+        return "$readable ($bytes B)"
+    }
+
+    inline fun allocate(): MutBytes = MutBytes(this.bytes)
+
+    private fun format(magnitude: Long, unit: Int): String {
+        // Round to thousandths, with ties away from zero.
+        // Safe in Long for every possible Int byte count.
+        val scaled = (magnitude * 1000L + unit / 2) / unit
+        val fraction = (scaled % 1000L).toInt()
+
+        return buildString {
+            if (bytes < 0) {
+                append('-')
+            }
+            append(scaled / 1000L)
+
+            if (fraction != 0) {
+                append('.')
+                append('0' + fraction / 100)
+
+                if (fraction % 100 != 0) {
+                    append('0' + (fraction / 10) % 10)
+
+                    if (fraction % 10 != 0) {
+                        append('0' + fraction % 10)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@PublishedApi
+internal const val KIB = 1024
+
+@PublishedApi
+internal const val MIB = KIB * 1024
+
+@PublishedApi
+internal const val GIB = MIB * 1024
+
+inline fun Int.bytes() = DataSize(this)
+
+inline fun Int.kilobytes() = DataSize(Math.multiplyExact(this, KIB))
+
+inline fun Int.megabytes() = DataSize(Math.multiplyExact(this, MIB))
+
+inline fun Int.gigabytes() = DataSize(Math.multiplyExact(this, GIB))

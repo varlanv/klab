@@ -12,6 +12,7 @@ kspVersion = "2.3.13"
 proguardVersion = "7.10.0"
 versionCatalogPluginVersion = "1.1.2"
 slangVersion = "2026.20"
+zigVersion = "0.17.0"
 
 [libraries]
 jmh-core = { module = "org.openjdk.jmh:jmh-core", version.ref = "jmhVersion" }

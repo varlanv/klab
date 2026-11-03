@@ -6,7 +6,7 @@ import com.varlanv.klab.log.Sink
 fun main() {
     App.create(
         init = App.Init(
-            mode = RunMode.Dev,
+            mode = RunMode.Debug,
             log = Log(
                 sink = Sink.stderr,
                 enabled = true,

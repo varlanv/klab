@@ -15,7 +15,6 @@ import org.gradle.api.provider.Provider
 import org.gradle.api.tasks.*
 import org.gradle.work.DisableCachingByDefault
 import java.nio.file.Files
-import java.util.*
 import java.util.zip.ZipFile
 
 class SlangBinaryPlugin : Plugin<Project> {
@@ -174,17 +173,16 @@ internal data class SlangPlatform(val classifier: String, val executableName: St
 
     companion object {
         fun current(): SlangPlatform {
-            val osName = System.getProperty("os.name").lowercase(Locale.ROOT)
-            val os = when {
-                osName.startsWith("windows") -> "windows"
-                osName.startsWith("mac") || osName.startsWith("darwin") -> "macos"
-                osName.startsWith("linux") -> "linux"
-                else -> error("Unsupported Slang operating system: $osName")
+            val os = when (Os.current) {
+                Os.Windows -> "windows"
+                Os.Mac -> "macos"
+                Os.Linux -> "linux"
+                else -> error("Unsupported Slang operating system: ${Os.jvmString}")
             }
-            val arch = when (val archName = System.getProperty("os.arch").lowercase(Locale.ROOT)) {
-                "amd64", "x86_64" -> "x86_64"
-                "aarch64", "arm64" -> "aarch64"
-                else -> error("Unsupported Slang architecture: $archName")
+            val arch = when (Arch.current) {
+                Arch.X64 -> "x86_64"
+                Arch.Arm64 -> "aarch64"
+                else -> error("Unsupported Slang architecture: ${Arch.jvmString}")
             }
             return SlangPlatform("$os-$arch", if (os == "windows") "slangc.exe" else "slangc")
         }
