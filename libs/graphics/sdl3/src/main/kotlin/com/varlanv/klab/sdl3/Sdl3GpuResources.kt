@@ -13,7 +13,29 @@ enum class Sdl3GpuBufferUsage { Vertex, Index }
 
 enum class Sdl3GpuShaderStage { Vertex, Fragment }
 
-enum class Sdl3GpuVertexFormat { Float2 }
+enum class Sdl3GpuVertexFormat { Float2, Float3, Float4 }
+
+enum class Sdl3GpuPrimitiveType { Triangles, Lines }
+
+class Sdl3GpuDepthTexture internal constructor(
+    internal val device: MemorySegment,
+    internal var handle: MemorySegment,
+    val width: Int,
+    val height: Int,
+    val format: Sdl3GpuTextureFormat,
+) : AutoCloseable {
+
+    internal fun checkOpen() {
+        check(handle.address() != 0L) { "GPU depth texture is closed" }
+    }
+
+    override fun close() {
+        if (handle.address() != 0L) {
+            SDL3.SDL_ReleaseGPUTexture(device, handle)
+            handle = MemorySegment.NULL
+        }
+    }
+}
 
 class Sdl3GpuVertexAttribute(
     val location: Int,
@@ -116,6 +138,7 @@ class Sdl3GpuShader internal constructor(
 class Sdl3GpuGraphicsPipeline internal constructor(
     internal val device: MemorySegment,
     internal var handle: MemorySegment,
+    internal val depthFormat: Sdl3GpuTextureFormat?,
 ) : AutoCloseable {
 
     internal fun checkOpen() {

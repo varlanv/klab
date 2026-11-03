@@ -1,12 +1,6 @@
 package com.varlanv.klab.sdl3
 
-import com.varlanv.klab.sdl3.ffi.generated.SDL3
-import com.varlanv.klab.sdl3.ffi.generated.SDL_FColor
-import com.varlanv.klab.sdl3.ffi.generated.SDL_GPUBufferBinding
-import com.varlanv.klab.sdl3.ffi.generated.SDL_GPUBufferRegion
-import com.varlanv.klab.sdl3.ffi.generated.SDL_GPUColorTargetInfo
-import com.varlanv.klab.sdl3.ffi.generated.SDL_GPUTextureSamplerBinding
-import com.varlanv.klab.sdl3.ffi.generated.SDL_GPUTransferBufferLocation
+import com.varlanv.klab.sdl3.ffi.generated.*
 import java.lang.foreign.MemorySegment
 import java.lang.foreign.SegmentAllocator
 
@@ -137,26 +131,66 @@ class Sdl3GpuFrame internal constructor(
 ) {
 
     private var started = false
+    private var initializedDepth: Sdl3GpuDepthTexture? = null
 
     context(gpa: SegmentAllocator)
-    fun beginRenderPass(r: Float, g: Float, b: Float, a: Float = 1f): Sdl3GpuRenderPass {
+    fun beginRenderPass(
+        r: Float = 0f,
+        g: Float = 0f,
+        b: Float = 0f,
+        a: Float = 1f,
+        clear: Boolean = true,
+        depth: Sdl3GpuDepthTexture? = null,
+    ): Sdl3GpuRenderPass {
         swapchain.checkOpen()
         command.checkIdle()
-        check(!started) { "Frame render pass has already begun" }
+        check(started || clear) { "The first frame render pass must clear its target" }
+        require(r.isFinite() && g.isFinite() && b.isFinite() && a.isFinite())
+        if (depth != null) {
+            depth.checkOpen()
+            check(depth.device.address() == command.device.address())
+            require(depth.width == width && depth.height == height)
+            check(clear || initializedDepth === depth) {
+                "Clear the depth texture before loading its contents"
+            }
+        }
         val target = SDL_GPUColorTargetInfo.allocate(gpa).fill(0)
         SDL_GPUColorTargetInfo.texture(target, texture)
-        SDL_GPUColorTargetInfo.load_op(target, SDL3.SDL_GPU_LOADOP_CLEAR())
+        SDL_GPUColorTargetInfo.load_op(target, if (clear) SDL3.SDL_GPU_LOADOP_CLEAR() else SDL3.SDL_GPU_LOADOP_LOAD())
         SDL_GPUColorTargetInfo.store_op(target, SDL3.SDL_GPU_STOREOP_STORE())
         val color = SDL_GPUColorTargetInfo.clear_color(target)
         SDL_FColor.r(color, r)
         SDL_FColor.g(color, g)
         SDL_FColor.b(color, b)
         SDL_FColor.a(color, a)
-        val passHandle = SDL3.SDL_BeginGPURenderPass(command.handle, target, 1, MemorySegment.NULL)
+        val depthTarget = if (depth != null) {
+            val info = SDL_GPUDepthStencilTargetInfo.allocate(gpa).fill(0)
+            SDL_GPUDepthStencilTargetInfo.texture(info, depth.handle)
+            SDL_GPUDepthStencilTargetInfo.clear_depth(info, 1f)
+            SDL_GPUDepthStencilTargetInfo.load_op(
+                info,
+                if (clear) SDL3.SDL_GPU_LOADOP_CLEAR() else SDL3.SDL_GPU_LOADOP_LOAD()
+            )
+            SDL_GPUDepthStencilTargetInfo.store_op(info, SDL3.SDL_GPU_STOREOP_STORE())
+            SDL_GPUDepthStencilTargetInfo.stencil_load_op(info, SDL3.SDL_GPU_LOADOP_DONT_CARE())
+            SDL_GPUDepthStencilTargetInfo.stencil_store_op(info, SDL3.SDL_GPU_STOREOP_DONT_CARE())
+            SDL_GPUDepthStencilTargetInfo.cycle(info, clear)
+            info
+        } else {
+            MemorySegment.NULL
+        }
+        val passHandle = SDL3.SDL_BeginGPURenderPass(command.handle, target, 1, depthTarget)
         check(passHandle.address() != 0L) { errorMessage("Failed to begin GPU render pass") }
-        val pass = Sdl3GpuRenderPass(command = command, handle = passHandle, width = width, height = height)
+        val pass = Sdl3GpuRenderPass(
+            command = command,
+            handle = passHandle,
+            width = width,
+            height = height,
+            depthFormat = depth?.format,
+        )
         command.beginRenderPass(pass)
         started = true
+        if (depth != null) initializedDepth = depth
         return pass
     }
 }
@@ -166,6 +200,7 @@ class Sdl3GpuRenderPass internal constructor(
     private var handle: MemorySegment,
     val width: Int,
     val height: Int,
+    private val depthFormat: Sdl3GpuTextureFormat?,
 ) : AutoCloseable {
 
     private var pipelineBound = false
@@ -176,6 +211,7 @@ class Sdl3GpuRenderPass internal constructor(
         command.checkPass(this)
         pipeline.checkOpen()
         check(pipeline.device.address() == command.device.address())
+        check(pipeline.depthFormat == depthFormat) { "Pipeline depth format must match its render pass" }
         SDL3.SDL_BindGPUGraphicsPipeline(handle, pipeline.handle)
         pipelineBound = true
     }

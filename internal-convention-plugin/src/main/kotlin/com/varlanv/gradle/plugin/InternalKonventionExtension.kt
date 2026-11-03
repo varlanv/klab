@@ -7,6 +7,7 @@ import org.gradle.api.artifacts.VersionCatalogsExtension
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Exec
 import org.gradle.api.tasks.JavaExec
+import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.api.tasks.testing.Test
 import org.gradle.jvm.tasks.Jar
 import org.gradle.jvm.toolchain.JavaLanguageVersion
@@ -33,10 +34,21 @@ interface InternalKonventionExtension {
     fun configureBenchmark(project: Project) {
         val extensions = project.extensions
         val dependencies = project.dependencies
+        val tasks = project.tasks
         val pluginManager = project.pluginManager
         pluginManager.apply(JMHPlugin::class.java)
         val internalProperties = extensions.getByType(InternalProperties::class.java)
         dependencies.add("jmh", internalProperties.getLib("jmh-core").get())
+        tasks.named("compileJmhJava", JavaCompile::class.java) {
+            it.options.compilerArgs.addAll(listOf("--add-modules", "jdk.incubator.vector"))
+        }
+        tasks.withType(me.champeau.jmh.JmhBytecodeGeneratorTask::class.java).configureEach {
+            it.jvmArgs.add("--add-modules=jdk.incubator.vector")
+        }
+
+        tasks.named("compileJmhJava", JavaCompile::class.java) {
+            it.options.compilerArgs.addAll(listOf("--add-modules", "jdk.incubator.vector"))
+        }
         extensions.configure(JmhParameters::class.java) { jmh ->
             jmh.includeTests.set(false)
             jmh.jmhVersion.set(internalProperties.getVersion("jmhVersion"))

@@ -8,6 +8,29 @@ import java.lang.foreign.SegmentAllocator
 
 class Sdl3GpuDevice internal constructor(internal var handle: MemorySegment) : AutoCloseable {
 
+    private var selectedDepthFormat = 0
+
+    val depthTextureFormat: Sdl3GpuTextureFormat
+        get() {
+            checkOpen()
+            if (selectedDepthFormat == 0) {
+                selectedDepthFormat = when {
+                    supportsDepthFormat(SDL3.SDL_GPU_TEXTUREFORMAT_D32_FLOAT()) -> SDL3.SDL_GPU_TEXTUREFORMAT_D32_FLOAT()
+                    supportsDepthFormat(SDL3.SDL_GPU_TEXTUREFORMAT_D24_UNORM()) -> SDL3.SDL_GPU_TEXTUREFORMAT_D24_UNORM()
+                    supportsDepthFormat(SDL3.SDL_GPU_TEXTUREFORMAT_D16_UNORM()) -> SDL3.SDL_GPU_TEXTUREFORMAT_D16_UNORM()
+                    else -> error("GPU device does not support a depth texture format")
+                }
+            }
+            return Sdl3GpuTextureFormat(selectedDepthFormat)
+        }
+
+    private fun supportsDepthFormat(format: Int): Boolean = SDL3.SDL_GPUTextureSupportsFormat(
+        handle,
+        format,
+        SDL3.SDL_GPU_TEXTURETYPE_2D(),
+        SDL3.SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET(),
+    )
+
     internal fun checkOpen() {
         check(handle.address() != 0L) { "GPU device is closed" }
     }
@@ -71,6 +94,25 @@ class Sdl3GpuDevice internal constructor(internal var handle: MemorySegment) : A
     }
 
     context(gpa: SegmentAllocator)
+    fun createDepthTexture(width: Int, height: Int): Sdl3GpuDepthTexture {
+        checkOpen()
+        require(width > 0 && height > 0)
+        val format = depthTextureFormat
+        val info = SDL_GPUTextureCreateInfo.allocate(gpa).fill(0)
+        SDL_GPUTextureCreateInfo.type(info, SDL3.SDL_GPU_TEXTURETYPE_2D())
+        SDL_GPUTextureCreateInfo.format(info, format.value)
+        SDL_GPUTextureCreateInfo.usage(info, SDL3.SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET())
+        SDL_GPUTextureCreateInfo.width(info, width)
+        SDL_GPUTextureCreateInfo.height(info, height)
+        SDL_GPUTextureCreateInfo.layer_count_or_depth(info, 1)
+        SDL_GPUTextureCreateInfo.num_levels(info, 1)
+        SDL_GPUTextureCreateInfo.sample_count(info, SDL3.SDL_GPU_SAMPLECOUNT_1())
+        val texture = SDL3.SDL_CreateGPUTexture(handle, info)
+        check(texture.address() != 0L) { errorMessage("Failed to create GPU depth texture") }
+        return Sdl3GpuDepthTexture(device = handle, handle = texture, width = width, height = height, format = format)
+    }
+
+    context(gpa: SegmentAllocator)
     fun createSampler(): Sdl3GpuSampler {
         checkOpen()
         val info = SDL_GPUSamplerCreateInfo.allocate(gpa).fill(0)
@@ -125,6 +167,10 @@ class Sdl3GpuDevice internal constructor(internal var handle: MemorySegment) : A
         vertexPitch: Int,
         attributes: List<Sdl3GpuVertexAttribute>,
         alphaBlend: Boolean = false,
+        primitiveType: Sdl3GpuPrimitiveType = Sdl3GpuPrimitiveType.Triangles,
+        depthFormat: Sdl3GpuTextureFormat? = null,
+        depthTest: Boolean = false,
+        depthWrite: Boolean = depthTest,
     ): Sdl3GpuGraphicsPipeline {
         checkOpen()
         vertexShader.checkOpen()
@@ -134,17 +180,30 @@ class Sdl3GpuDevice internal constructor(internal var handle: MemorySegment) : A
         require(vertexShader.stage == Sdl3GpuShaderStage.Vertex)
         require(fragmentShader.stage == Sdl3GpuShaderStage.Fragment)
         require(vertexPitch >= 8 && attributes.isNotEmpty())
+        require(depthFormat != null || (!depthTest && !depthWrite))
         require(attributes.map { it.location }.distinct().size == attributes.size)
         val info = SDL_GPUGraphicsPipelineCreateInfo.allocate(gpa).fill(0)
         SDL_GPUGraphicsPipelineCreateInfo.vertex_shader(info, vertexShader.handle)
         SDL_GPUGraphicsPipelineCreateInfo.fragment_shader(info, fragmentShader.handle)
-        SDL_GPUGraphicsPipelineCreateInfo.primitive_type(info, SDL3.SDL_GPU_PRIMITIVETYPE_TRIANGLELIST())
+        SDL_GPURasterizerState.enable_depth_clip(SDL_GPUGraphicsPipelineCreateInfo.rasterizer_state(info), true)
+        SDL_GPUGraphicsPipelineCreateInfo.primitive_type(
+            info,
+            when (primitiveType) {
+                Sdl3GpuPrimitiveType.Triangles -> SDL3.SDL_GPU_PRIMITIVETYPE_TRIANGLELIST()
+                Sdl3GpuPrimitiveType.Lines -> SDL3.SDL_GPU_PRIMITIVETYPE_LINELIST()
+            },
+        )
         val buffer = SDL_GPUVertexBufferDescription.allocate(gpa).fill(0)
         SDL_GPUVertexBufferDescription.pitch(buffer, vertexPitch)
         val nativeAttributes = SDL_GPUVertexAttribute.allocateArray(attributes.size.toLong(), gpa).fill(0)
         for (index in attributes.indices) {
             val attribute = attributes[index]
-            require(attribute.location >= 0 && attribute.offset in 0..vertexPitch - 8)
+            val attributeSize = when (attribute.format) {
+                Sdl3GpuVertexFormat.Float2 -> 8
+                Sdl3GpuVertexFormat.Float3 -> 12
+                Sdl3GpuVertexFormat.Float4 -> 16
+            }
+            require(attribute.location >= 0 && attribute.offset >= 0 && attribute.offset.toLong() + attributeSize <= vertexPitch)
             val native = SDL_GPUVertexAttribute.asSlice(nativeAttributes, index.toLong())
             SDL_GPUVertexAttribute.location(native, attribute.location)
             SDL_GPUVertexAttribute.offset(native, attribute.offset)
@@ -152,6 +211,8 @@ class Sdl3GpuDevice internal constructor(internal var handle: MemorySegment) : A
                 native,
                 when (attribute.format) {
                     Sdl3GpuVertexFormat.Float2 -> SDL3.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2()
+                    Sdl3GpuVertexFormat.Float3 -> SDL3.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3()
+                    Sdl3GpuVertexFormat.Float4 -> SDL3.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4()
                 },
             )
         }
@@ -175,9 +236,17 @@ class Sdl3GpuDevice internal constructor(internal var handle: MemorySegment) : A
         val targets = SDL_GPUGraphicsPipelineCreateInfo.target_info(info)
         SDL_GPUGraphicsPipelineTargetInfo.color_target_descriptions(targets, target)
         SDL_GPUGraphicsPipelineTargetInfo.num_color_targets(targets, 1)
+        if (depthFormat != null) {
+            SDL_GPUGraphicsPipelineTargetInfo.has_depth_stencil_target(targets, true)
+            SDL_GPUGraphicsPipelineTargetInfo.depth_stencil_format(targets, depthFormat.value)
+            val depth = SDL_GPUGraphicsPipelineCreateInfo.depth_stencil_state(info)
+            SDL_GPUDepthStencilState.enable_depth_test(depth, depthTest)
+            SDL_GPUDepthStencilState.enable_depth_write(depth, depthWrite)
+            SDL_GPUDepthStencilState.compare_op(depth, SDL3.SDL_GPU_COMPAREOP_LESS_OR_EQUAL())
+        }
         val pipeline = SDL3.SDL_CreateGPUGraphicsPipeline(handle, info)
         check(pipeline.address() != 0L) { errorMessage("Failed to create GPU graphics pipeline") }
-        return Sdl3GpuGraphicsPipeline(device = handle, handle = pipeline)
+        return Sdl3GpuGraphicsPipeline(device = handle, handle = pipeline, depthFormat = depthFormat)
     }
 
     override fun close() {

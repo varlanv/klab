@@ -36,6 +36,17 @@ class App private constructor(private val init: Init) {
         while (renderer.pollEvents()) {
             val frameStart = renderer.ticksNs()
             fps.update(frameStart)
+            renderer.drawCube(
+                x = 0.6f, y = 0f, z = 0f,
+                width = 2f, height = 2f, length = 2f,
+                red = 0.2f, green = 0.45f, blue = 0.85f,
+                fill = true,
+            )
+            renderer.drawRectangle(
+                x = 360f, y = 310f, width = 160f, height = 100f,
+                red = 0.9f, green = 0.3f, blue = 0.2f, alpha = 0.8f,
+                fill = true,
+            )
             val presented = Arena.ofConfined().use { scratch ->
                 context(scratch) {
                     renderer.renderFrame()

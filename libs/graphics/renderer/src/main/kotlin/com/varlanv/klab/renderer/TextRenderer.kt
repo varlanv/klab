@@ -14,9 +14,7 @@ class TextRenderer private constructor(
 ) : AutoCloseable {
 
     private val texts = ArrayList<Text>()
-    private var vertexBuffer: Sdl3GpuBuffer? = null
-    private var indexBuffer: Sdl3GpuBuffer? = null
-    private var transferBuffer: Sdl3GpuTransferBuffer? = null
+    private val mesh = MeshBuffers(device)
     private var vertexCount = 0
     private var indexCount = 0
     private var geometryDirty = true
@@ -75,11 +73,7 @@ class TextRenderer private constructor(
         if (!uploadPending) return
         val vertexBytes = Math.multiplyExact(vertexCount, 16)
         val indexBytes = Math.multiplyExact(indexCount, 4)
-        ensureBuffers(vertexBytes = vertexBytes, indexBytes = indexBytes)
-        val vertices = checkNotNull(vertexBuffer)
-        val indices = checkNotNull(indexBuffer)
-        val transfer = checkNotNull(transferBuffer)
-        val data = transfer.map()
+        val data = mesh.map(vertexBytes = vertexBytes, indexBytes = indexBytes)
         try {
             for (text in texts) {
                 MemorySegment.copy(
@@ -88,16 +82,13 @@ class TextRenderer private constructor(
                 )
                 MemorySegment.copy(
                     MemorySegment.ofArray(text.indices), 0L,
-                    data, vertices.size + text.firstIndex * 4L, text.indexCount * 4L,
+                    data, mesh.indexOffset + text.firstIndex * 4L, text.indexCount * 4L,
                 )
             }
         } finally {
-            transfer.unmap()
+            mesh.unmap()
         }
-        command.beginCopyPass().use { copy ->
-            copy.upload(source = transfer, destination = vertices, size = vertexBytes)
-            copy.upload(source = transfer, destination = indices, size = indexBytes, sourceOffset = vertices.size)
-        }
+        mesh.upload(command = command, vertexBytes = vertexBytes, indexBytes = indexBytes)
         uploadRecorded = true
     }
 
@@ -114,8 +105,7 @@ class TextRenderer private constructor(
         }
         if (indexCount == 0) return
         pass.bindPipeline(pipeline)
-        pass.bindVertexBuffer(checkNotNull(vertexBuffer))
-        pass.bindIndexBuffer(checkNotNull(indexBuffer))
+        mesh.bind(pass)
         val uniforms = gpa.allocate(32, 16)
         uniforms.set(ValueLayout.JAVA_FLOAT, 0L, pass.width.toFloat())
         uniforms.set(ValueLayout.JAVA_FLOAT, 4L, pass.height.toFloat())
@@ -139,33 +129,6 @@ class TextRenderer private constructor(
         }
     }
 
-    context(gpa: SegmentAllocator)
-    private fun ensureBuffers(vertexBytes: Int, indexBytes: Int) {
-        val oldVertexSize = vertexBuffer?.size ?: 0
-        val oldIndexSize = indexBuffer?.size ?: 0
-        if (vertexBytes <= oldVertexSize && indexBytes <= oldIndexSize) return
-        val vertexSize = if (vertexBytes > oldVertexSize) growCapacity(oldVertexSize, vertexBytes) else oldVertexSize
-        val indexSize = if (indexBytes > oldIndexSize) growCapacity(oldIndexSize, indexBytes) else oldIndexSize
-        val vertices = device.createBuffer(usage = Sdl3GpuBufferUsage.Vertex, size = vertexSize)
-        var indices: Sdl3GpuBuffer? = null
-        var transfer: Sdl3GpuTransferBuffer? = null
-        try {
-            indices = device.createBuffer(usage = Sdl3GpuBufferUsage.Index, size = indexSize)
-            transfer = device.createTransferBuffer(Math.addExact(vertexSize, indexSize))
-        } catch (failure: Throwable) {
-            transfer?.close()
-            indices?.close()
-            vertices.close()
-            throw failure
-        }
-        transferBuffer?.close()
-        indexBuffer?.close()
-        vertexBuffer?.close()
-        vertexBuffer = vertices
-        indexBuffer = indices
-        transferBuffer = transfer
-    }
-
     internal fun checkOpen() {
         check(!closed) { "Text renderer is closed" }
     }
@@ -173,9 +136,7 @@ class TextRenderer private constructor(
     override fun close() {
         if (!closed) {
             while (texts.isNotEmpty()) texts.last().close()
-            transferBuffer?.close()
-            indexBuffer?.close()
-            vertexBuffer?.close()
+            mesh.close()
             sampler.close()
             pipeline.close()
             engine.close()
@@ -212,7 +173,12 @@ class TextRenderer private constructor(
                     }
                 }
                 sampler = device.createSampler()
-                return TextRenderer(device = device, engine = engine, pipeline = checkNotNull(pipeline), sampler = sampler)
+                return TextRenderer(
+                    device = device,
+                    engine = engine,
+                    pipeline = checkNotNull(pipeline),
+                    sampler = sampler
+                )
             } catch (failure: Throwable) {
                 sampler?.close()
                 pipeline?.close()

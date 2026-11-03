@@ -15,11 +15,51 @@ class Renderer private constructor(
     private val swapchain: Sdl3GpuSwapchain,
     private val ttf: Sdl3Ttf,
     val text: TextRenderer,
+    private val primitives: PrimitiveRenderer,
 ) : AutoCloseable {
 
     private val fonts = ArrayList<Sdl3Font>()
     private var closed = false
     private var previousRefreshRate = 0.0
+    private var depth: Sdl3GpuDepthTexture? = null
+
+    fun drawRectangle(
+        x: Float,
+        y: Float,
+        width: Float,
+        height: Float,
+        red: Float,
+        green: Float,
+        blue: Float,
+        alpha: Float = 1f,
+        fill: Boolean = true,
+    ) {
+        checkOpen()
+        primitives.drawRectangle(
+            x = x, y = y, width = width, height = height,
+            red = red, green = green, blue = blue, alpha = alpha, fill = fill,
+        )
+    }
+
+    fun drawCube(
+        x: Float,
+        y: Float,
+        z: Float,
+        width: Float,
+        height: Float,
+        length: Float,
+        red: Float,
+        green: Float,
+        blue: Float,
+        alpha: Float = 1f,
+        fill: Boolean = true,
+    ) {
+        checkOpen()
+        primitives.drawCube(
+            x = x, y = y, z = z, width = width, height = height, length = length,
+            red = red, green = green, blue = blue, alpha = alpha, fill = fill,
+        )
+    }
 
     context(gpa: SegmentAllocator)
     fun openFont(data: Bytes, pointSize: Float): Sdl3Font {
@@ -47,18 +87,36 @@ class Renderer private constructor(
     context(gpa: SegmentAllocator)
     fun renderFrame(): Boolean {
         checkOpen()
-        text.prepare()
-        device.acquireCommandBuffer().use { command ->
-            text.upload(command)
-            val frame = swapchain.acquireFrame(command)
-            if (frame != null) {
-                frame.beginRenderPass(r = 1f, g = 1f, b = 1f).use { pass ->
-                    text.draw(pass)
+        try {
+            text.prepare()
+            device.acquireCommandBuffer().use { command ->
+                text.upload(command)
+                primitives.upload(command)
+                val frame = swapchain.acquireFrame(command)
+                if (frame != null) {
+                    val cubes = primitives.hasCubes
+                    if (cubes) {
+                        val target = depth
+                        if (target == null || target.width != frame.width || target.height != frame.height) {
+                            val replacement = device.createDepthTexture(width = frame.width, height = frame.height)
+                            target?.close()
+                            depth = replacement
+                        }
+                        frame.beginRenderPass(r = 1f, g = 1f, b = 1f, depth = checkNotNull(depth)).use { pass ->
+                            primitives.drawCubes(pass)
+                        }
+                    }
+                    frame.beginRenderPass(r = 1f, g = 1f, b = 1f, clear = !cubes).use { pass ->
+                        primitives.drawRectangles(pass)
+                        text.draw(pass)
+                    }
                 }
+                command.submit()
+                text.commitUploads()
+                return frame != null
             }
-            command.submit()
-            text.commitUploads()
-            return frame != null
+        } finally {
+            primitives.clear()
         }
     }
 
@@ -82,6 +140,8 @@ class Renderer private constructor(
         if (!closed) {
             closed = true
             val resources = ArrayList<AutoCloseable>()
+            resources.add(primitives)
+            depth?.let { resources.add(it) }
             resources.add(text)
             resources.addAll(fonts.asReversed())
             resources.addAll(listOf(ttf, swapchain, window, device, sdl))
@@ -98,6 +158,7 @@ class Renderer private constructor(
             var swapchain: Sdl3GpuSwapchain? = null
             var ttf: Sdl3Ttf? = null
             var text: TextRenderer? = null
+            var primitives: PrimitiveRenderer? = null
             try {
                 device = sdl.createGpuDevice()
                 window = sdl.createWindow(title = title, width = 1280, height = 720)
@@ -108,9 +169,21 @@ class Renderer private constructor(
                     targetFormat = swapchain.textureFormat,
                     shader = resource("/shaders/shaders-primitive/text.spv"),
                 )
-                return Renderer(sdl = sdl, device = device, window = window, swapchain = swapchain, ttf = ttf, text = text)
+                primitives = PrimitiveRenderer.create(
+                    device = device,
+                    targetFormat = swapchain.textureFormat,
+                    depthFormat = device.depthTextureFormat,
+                    shader = resource("/shaders/shaders-primitive/primitive.spv"),
+                )
+                return Renderer(
+                    sdl = sdl, device = device, window = window, swapchain = swapchain,
+                    ttf = ttf, text = text, primitives = primitives,
+                )
             } catch (failure: Throwable) {
-                closeResources(resources = listOfNotNull(text, ttf, swapchain, window, device, sdl), cause = failure)
+                closeResources(
+                    resources = listOfNotNull(primitives, text, ttf, swapchain, window, device, sdl),
+                    cause = failure,
+                )
                 throw failure
             }
         }

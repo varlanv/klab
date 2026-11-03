@@ -30,8 +30,20 @@ class InternalKonventionPlugin : Plugin<Project> {
         private val rootDir = project.rootDir.toPath()
         private val internalEnvironment = extensions.findByName(InternalEnvironment.NAME) as InternalEnvironment?
             ?: InternalEnvironment(providers.environmentVariable("CI").isPresent, false)
-        private val internalProperties = extensions.findByName(InternalProperties.NAME) as InternalProperties?
-            ?: InternalProperties(extensions.getByName("versionCatalogs") as VersionCatalogsExtension)
+        private val internalProperties: InternalProperties = extensions.findByName(InternalProperties.NAME).let {
+            val casted = it as InternalProperties?
+            if (casted == null) {
+                val extension = InternalProperties(extensions.getByName("versionCatalogs") as VersionCatalogsExtension)
+                extensions.add(
+                    InternalProperties::class.java,
+                    InternalProperties.NAME,
+                    extension
+                )
+                extension
+            } else {
+                casted
+            }
+        }
         private val internalKonventionExtension =
             extensions.findByName(InternalKonventionExtension.NAME) as InternalKonventionExtension?
                 ?: extensions.create(InternalKonventionExtension.NAME, InternalKonventionExtension::class.java)
