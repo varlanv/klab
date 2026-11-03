@@ -7,72 +7,129 @@ import java.lang.foreign.SegmentAllocator
 import kotlin.math.ceil
 
 private const val NANOS_IN_SECOND = 1_000_000_000.0
-private const val POINT_SIZE = 20f
 
-class Renderer private constructor() {
+class Renderer private constructor(
+    private val sdl: Sdl3,
+    private val device: Sdl3GpuDevice,
+    private val window: Sdl3Window,
+    private val swapchain: Sdl3GpuSwapchain,
+    private val ttf: Sdl3Ttf,
+    val text: TextRenderer,
+) : AutoCloseable {
 
-    context(gpa: SegmentAllocator, io: Io)
-    fun start(title: String) {
-        Sdl3.init(gpa).use { sdl ->
-            sdl.createGpuDevice().use { device ->
-                sdl.createWindow(title, 1280, 720).use { window ->
-                    device.claimWindow(window).use { swapchain ->
-                        Sdl3Ttf.init().use { ttf ->
-                            ttf.openFont(
-                                gpa = gpa,
-                                data = resource("/fonts/LiberationMono-Regular.ttf"),
-                                pointSize = POINT_SIZE,
-                            ).use { font ->
-                                swapchain.createTextEngine(resource("/shaders/shaders-primitive/text.spv"))
-                                    .use { engine ->
-                                        engine.createText(font = font, text = "FPS: --").use { fpsText ->
-                                            fpsText.setPosition(x = 16f, y = 16f)
-                                            renderLoop(
-                                                sdl = sdl,
-                                                window = window,
-                                                swapchain = swapchain,
-                                                fpsText = fpsText
-                                            )
-                                        }
-                                    }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+    private val fonts = ArrayList<Sdl3Font>()
+    private var closed = false
+    private var previousRefreshRate = 0.0
+
+    context(gpa: SegmentAllocator)
+    fun openFont(data: Bytes, pointSize: Float): Sdl3Font {
+        checkOpen()
+        val font = ttf.openFont(data = data, pointSize = pointSize)
+        fonts.add(font)
+        return font
     }
 
-    context(gpa: SegmentAllocator, io: Io)
-    private fun renderLoop(sdl: Sdl3, window: Sdl3Window, swapchain: Sdl3GpuSwapchain, fpsText: Sdl3GpuText) {
-        val refreshRate = window.currentDisplayRefreshRate().let {
-            if (it > 0.0) it else 60.0
-        }
-        io.debug { "Resolved refresh rate - [ $refreshRate ]" }
-        val renderPass = RenderPass(fpsText = fpsText, swapchain = swapchain)
+    fun pollEvents(): Boolean {
+        checkOpen()
         while (true) {
-            renderPass.frameStart = sdl.ticksNs()
-            assert(renderPass.frameStart > 0)
-            while (true) {
-                when (sdl.pollEvent() ?: break) {
-                    Sdl3Event.Quit, Sdl3Event.WindowCloseRequested -> return
-                    Sdl3Event.Other -> Unit
-                }
+            when (sdl.pollEvent() ?: return true) {
+                Sdl3Event.Quit, Sdl3Event.WindowCloseRequested -> return false
+                Sdl3Event.Other -> Unit
             }
-            renderPass.drawFps()
-            val frameRate = minOf(refreshRate, 120.0)
-            val frameDuration = ceil(NANOS_IN_SECOND / frameRate).toLong()
-            sdl.delayPrecise(frameDuration - (sdl.ticksNs() - renderPass.frameStart))
         }
     }
 
+    fun ticksNs(): Long {
+        checkOpen()
+        return sdl.ticksNs()
+    }
 
-    private fun resource(path: String): Bytes {
-        return checkNotNull(Renderer::class.java.getResourceAsStream(path)) { "Missing renderer resource: $path" }
-            .use { it.readAllBytes() }
+    context(gpa: SegmentAllocator)
+    fun renderFrame(): Boolean {
+        checkOpen()
+        text.prepare()
+        device.acquireCommandBuffer().use { command ->
+            text.upload(command)
+            val frame = swapchain.acquireFrame(command)
+            if (frame != null) {
+                frame.beginRenderPass(r = 1f, g = 1f, b = 1f).use { pass ->
+                    text.draw(pass)
+                }
+            }
+            command.submit()
+            text.commitUploads()
+            return frame != null
+        }
+    }
+
+    context(io: Io)
+    fun waitForNextFrame(frameStart: Long) {
+        checkOpen()
+        val refreshRate = window.currentDisplayRefreshRate().let { if (it > 0.0) it else 60.0 }
+        if (refreshRate != previousRefreshRate) {
+            io.debug { "Resolved refresh rate - [ $refreshRate ]" }
+            previousRefreshRate = refreshRate
+        }
+        val duration = ceil(NANOS_IN_SECOND / minOf(refreshRate, 120.0)).toLong()
+        sdl.delayPrecise(duration - (sdl.ticksNs() - frameStart))
+    }
+
+    private fun checkOpen() {
+        check(!closed) { "Renderer is closed" }
+    }
+
+    override fun close() {
+        if (!closed) {
+            closed = true
+            val resources = ArrayList<AutoCloseable>()
+            resources.add(text)
+            resources.addAll(fonts.asReversed())
+            resources.addAll(listOf(ttf, swapchain, window, device, sdl))
+            closeResources(resources)
+        }
     }
 
     companion object {
-        fun create(): Renderer = Renderer()
+        context(gpa: SegmentAllocator)
+        fun create(title: String): Renderer {
+            val sdl = Sdl3.init()
+            var device: Sdl3GpuDevice? = null
+            var window: Sdl3Window? = null
+            var swapchain: Sdl3GpuSwapchain? = null
+            var ttf: Sdl3Ttf? = null
+            var text: TextRenderer? = null
+            try {
+                device = sdl.createGpuDevice()
+                window = sdl.createWindow(title = title, width = 1280, height = 720)
+                swapchain = device.claimWindow(window)
+                ttf = Sdl3Ttf.init()
+                text = TextRenderer.create(
+                    device = device,
+                    targetFormat = swapchain.textureFormat,
+                    shader = resource("/shaders/shaders-primitive/text.spv"),
+                )
+                return Renderer(sdl = sdl, device = device, window = window, swapchain = swapchain, ttf = ttf, text = text)
+            } catch (failure: Throwable) {
+                closeResources(resources = listOfNotNull(text, ttf, swapchain, window, device, sdl), cause = failure)
+                throw failure
+            }
+        }
+
+        private fun resource(path: String): Bytes {
+            return checkNotNull(Renderer::class.java.getResourceAsStream(path)) { "Missing renderer resource: $path" }
+                .use { it.readAllBytes() }
+        }
     }
+}
+
+private fun closeResources(resources: List<AutoCloseable>, cause: Throwable? = null) {
+    var failure = cause
+    for (resource in resources) {
+        try {
+            resource.close()
+        } catch (error: Throwable) {
+            if (failure == null) failure = error else failure.addSuppressed(error)
+        }
+    }
+    if (failure != null) throw failure
 }

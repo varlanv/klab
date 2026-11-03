@@ -5,10 +5,9 @@ import com.varlanv.klab.sdl3.ffi.generated.SDL_Event
 import java.lang.foreign.MemorySegment
 import java.lang.foreign.SegmentAllocator
 
-class Sdl3 private constructor(private val gpa: SegmentAllocator) : AutoCloseable {
+class Sdl3 private constructor(private val event: MemorySegment) : AutoCloseable {
 
-    private val event = SDL_Event.allocate(gpa)
-
+    context(gpa: SegmentAllocator)
     fun createWindow(title: String, width: Int, height: Int): Sdl3Window {
         val handle = SDL3.SDL_CreateWindow(gpa.allocateFrom(title), width, height, 0L)
         check(handle.address() != 0L) { errorMessage("Failed to create window") }
@@ -51,11 +50,12 @@ class Sdl3 private constructor(private val gpa: SegmentAllocator) : AutoCloseabl
     }
 
     companion object {
-        fun init(gpa: SegmentAllocator): Sdl3 {
+        context(gpa: SegmentAllocator)
+        fun init(): Sdl3 {
             SDL3.SDL_SetMainReady()
             try {
                 check(SDL3.SDL_Init(SDL3.SDL_INIT_VIDEO())) { errorMessage("Failed to initialize SDL3") }
-                return Sdl3(gpa)
+                return Sdl3(SDL_Event.allocate(gpa))
             } catch (failure: Throwable) {
                 SDL3.SDL_Quit()
                 throw failure

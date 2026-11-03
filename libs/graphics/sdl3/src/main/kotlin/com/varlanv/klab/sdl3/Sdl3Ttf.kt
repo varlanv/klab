@@ -9,8 +9,10 @@ import java.lang.foreign.SegmentAllocator
 class Sdl3Ttf private constructor() : AutoCloseable {
 
     private var initialized = true
+    private var fontCount = 0
 
-    fun openFont(gpa: SegmentAllocator, data: Bytes, pointSize: Float): Sdl3Font {
+    context(gpa: SegmentAllocator)
+    fun openFont(data: Bytes, pointSize: Float): Sdl3Font {
         check(initialized)
         require(data.isNotEmpty())
         require(pointSize.isFinite() && pointSize > 0f)
@@ -20,11 +22,19 @@ class Sdl3Ttf private constructor() : AutoCloseable {
         check(stream.address() != 0L) { errorMessage("Failed to open font stream") }
         val handle = SDL3Ttf.TTF_OpenFontIO(stream, true, pointSize)
         check(handle.address() != 0L) { errorMessage("Failed to open font") }
-        return Sdl3Font(handle)
+        val font = Sdl3Font(owner = this, handle = handle)
+        fontCount++
+        return font
+    }
+
+    internal fun fontClosed() {
+        assert(fontCount > 0)
+        fontCount--
     }
 
     override fun close() {
         if (initialized) {
+            check(fontCount == 0) { "Close fonts before SDL_ttf" }
             SDL3Ttf.TTF_Quit()
             initialized = false
         }
@@ -38,12 +48,23 @@ class Sdl3Ttf private constructor() : AutoCloseable {
     }
 }
 
-class Sdl3Font internal constructor(internal var handle: MemorySegment) : AutoCloseable {
+class Sdl3Font internal constructor(
+    private val owner: Sdl3Ttf,
+    internal var handle: MemorySegment,
+) : AutoCloseable {
+
+    internal var textCount = 0
+
+    internal fun checkOpen() {
+        check(handle.address() != 0L) { "Font is closed" }
+    }
 
     override fun close() {
         if (handle.address() != 0L) {
+            check(textCount == 0) { "Close text objects before their font" }
             SDL3Ttf.TTF_CloseFont(handle)
             handle = MemorySegment.NULL
+            owner.fontClosed()
         }
     }
 }
