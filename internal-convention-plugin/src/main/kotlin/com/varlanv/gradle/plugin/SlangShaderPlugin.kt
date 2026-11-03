@@ -1,6 +1,5 @@
 package com.varlanv.gradle.plugin
 
-import javax.inject.Inject
 import org.gradle.api.DefaultTask
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -11,23 +10,13 @@ import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.plugins.JavaLibraryPlugin
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
-import org.gradle.api.tasks.CacheableTask
-import org.gradle.api.tasks.IgnoreEmptyDirectories
-import org.gradle.api.tasks.Input
-import org.gradle.api.tasks.InputDirectory
-import org.gradle.api.tasks.InputFiles
-import org.gradle.api.tasks.Internal
-import org.gradle.api.tasks.OutputDirectory
-import org.gradle.api.tasks.PathSensitive
-import org.gradle.api.tasks.PathSensitivity
-import org.gradle.api.tasks.SkipWhenEmpty
-import org.gradle.api.tasks.SourceSetContainer
-import org.gradle.api.tasks.TaskAction
+import org.gradle.api.tasks.*
 import org.gradle.language.jvm.tasks.ProcessResources
 import org.gradle.process.ExecOperations
 import org.gradle.workers.WorkAction
 import org.gradle.workers.WorkParameters
 import org.gradle.workers.WorkerExecutor
+import javax.inject.Inject
 
 class SlangShaderPlugin : Plugin<Project> {
 
@@ -127,7 +116,8 @@ abstract class CompileSlangShaders @Inject constructor(
             val root = roots.firstOrNull { source.startsWith(it) }
                 ?: error("Shader source is outside the configured source directories: $source")
             val relativePath = source.relativeTo(root)
-            val output = outputDirectory.resolve(relativePath).resolveSibling("${relativePath.nameWithoutExtension}.spv")
+            val output =
+                outputDirectory.resolve(relativePath).resolveSibling("${relativePath.nameWithoutExtension}.spv")
             source to output
         }
         check(outputs.map { it.second }.distinct().size == outputs.size) {

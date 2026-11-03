@@ -6,6 +6,7 @@ import org.gradle.api.Project
 import org.gradle.api.artifacts.VersionCatalogsExtension
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Exec
+import org.gradle.api.tasks.JavaExec
 import org.gradle.api.tasks.testing.Test
 import org.gradle.jvm.tasks.Jar
 import org.gradle.jvm.toolchain.JavaLanguageVersion
@@ -26,6 +27,7 @@ interface InternalKonventionExtension {
         val dependencies = project.dependencies
         dependencies.add("implementation", dependencies.project(":libs:graphics:renderer"))
         dependencies.add("implementation", dependencies.project(":libs:graphics:sdl3"))
+        dependencies.add("implementation", dependencies.project(":libs:lang"))
     }
 
     fun configureBenchmark(project: Project) {
@@ -51,10 +53,36 @@ interface InternalKonventionExtension {
         }
     }
 
+    private enum class Optimize {
+        Fast,
+        Debug;
+
+        companion object {
+
+            fun fromString(str: String): Optimize {
+                val lower = str.lowercase()
+                for (entry in entries) {
+                    if (entry.name.lowercase() == lower) {
+                        return entry
+                    }
+                }
+                error("Only 'fast' and 'release' optimize modes are available")
+            }
+        }
+    }
+
     fun mainAppCommonConfiguration(project: Project, targetOptimize: String) {
-        configureOptimize(project, targetOptimize)
-        val dependencies = project.dependencies
-        dependencies.add("implementation", dependencies.project(":apps:main-shared"))
+        val optimize = Optimize.fromString(targetOptimize)
+        mainAppCommonDependencies(project)
+        configureOptimize(project, optimize)
+        project.tasks.withType(JavaExec::class.java).configureEach {
+            val additionalArgs = mutableListOf<String>()
+            additionalArgs.add("--enable-native-access=ALL-UNNAMED")
+            if (optimize == Optimize.Debug) {
+                additionalArgs.add("-ea")
+            }
+            it.jvmArgs(additionalArgs)
+        }
     }
 
     fun configureProguard(project: Project, aggressiveOptimizations: Boolean = false) {
@@ -132,12 +160,9 @@ interface InternalKonventionExtension {
         }
     }
 
-    private fun configureOptimize(project: Project, targetOptimize: String) {
-        require(targetOptimize == "fast" || targetOptimize == "debug") {
-            "Only 'fast' and 'release' optimize modes are available"
-        }
-        val selectedOptimize = project.providers.gradleProperty("com.varlanv.klab.optimize").get()
-        val isEnabled = selectedOptimize == targetOptimize
+    private fun configureOptimize(project: Project, optimize: Optimize) {
+        val selectedOptimize = Optimize.fromString(project.providers.gradleProperty("com.varlanv.klab.optimize").get())
+        val isEnabled = selectedOptimize == optimize
 
         val tasks = project.tasks
         tasks.withType(KotlinCompile::class.java) {

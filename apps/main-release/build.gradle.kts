@@ -5,3 +5,7 @@ plugins {
 description = "Release-specific application entrypoint wiring"
 
 internalConvention.mainAppCommonConfiguration(project, "fast")
+
+dependencies {
+    implementation(projects.apps.mainShared)
+}
