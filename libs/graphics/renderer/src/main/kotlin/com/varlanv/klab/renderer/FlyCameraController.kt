@@ -22,9 +22,9 @@ class FlyCameraController(
         require(mouseX.isFinite() && mouseY.isFinite())
         camera.rotate(yawDelta = mouseX * mouseSensitivity, pitchDelta = -mouseY * mouseSensitivity)
         val forward = (if (input.isKeyDown(Sdl3Scancode.W)) 1f else 0f) -
-            (if (input.isKeyDown(Sdl3Scancode.S)) 1f else 0f)
+                (if (input.isKeyDown(Sdl3Scancode.S)) 1f else 0f)
         val right = (if (input.isKeyDown(Sdl3Scancode.D)) 1f else 0f) -
-            (if (input.isKeyDown(Sdl3Scancode.A)) 1f else 0f)
+                (if (input.isKeyDown(Sdl3Scancode.A)) 1f else 0f)
         val magnitudeSquared = forward * forward + right * right
         if (magnitudeSquared == 0f || deltaSeconds == 0f || moveSpeed == 0f) return
         val distance = moveSpeed * minOf(deltaSeconds, 0.1f) / sqrt(magnitudeSquared)

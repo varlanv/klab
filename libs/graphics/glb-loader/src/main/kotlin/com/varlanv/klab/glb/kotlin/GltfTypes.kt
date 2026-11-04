@@ -1,10 +1,7 @@
 package com.varlanv.klab.glb.kotlin
 
+import com.varlanv.klab.collections.*
 import com.varlanv.klab.collections.Array
-import com.varlanv.klab.collections.Bytes
-import com.varlanv.klab.collections.Floats
-import com.varlanv.klab.collections.Ints
-import com.varlanv.klab.collections.stableEmptyInts
 
 internal const val GLTF_MISSING_INDEX = -1
 
@@ -13,7 +10,7 @@ internal const val GLTF_COMPONENT_UNSIGNED_BYTE = 5121
 internal const val GLTF_COMPONENT_SHORT = 5122
 internal const val GLTF_COMPONENT_UNSIGNED_SHORT = 5123
 internal const val GLTF_COMPONENT_UNSIGNED_INT = 5125
-internal const val GLTF_COMPONENT_FLOAT = 5126
+const val GLTF_COMPONENT_FLOAT = 5126
 
 internal const val GLTF_TYPE_INVALID = 0
 internal const val GLTF_TYPE_SCALAR = 1
@@ -33,7 +30,7 @@ internal const val MAT4_COMPONENTS = 16
 internal const val MATRIX_COLUMN_ALIGNMENT = 4
 
 internal const val GLTF_PRIMITIVE_POINTS = 0
-internal const val GLTF_PRIMITIVE_TRIANGLES = 4
+const val GLTF_PRIMITIVE_TRIANGLES = 4
 internal const val GLTF_PRIMITIVE_TRIANGLE_FAN = 6
 
 internal const val GLTF_INTERPOLATION_LINEAR = 0
@@ -44,6 +41,19 @@ internal const val GLTF_PATH_TRANSLATION = 1
 internal const val GLTF_PATH_ROTATION = 2
 internal const val GLTF_PATH_SCALE = 3
 internal const val GLTF_PATH_WEIGHTS = 4
+
+const val ATTRIBUTE_INVALID = 0
+const val ATTRIBUTE_POSITION = 1
+const val ATTRIBUTE_NORMAL = 2
+const val ATTRIBUTE_TANGENT = 3
+const val ATTRIBUTE_TEXCOORD = 4
+const val ATTRIBUTE_COLOR = 5
+const val ATTRIBUTE_JOINTS = 6
+const val ATTRIBUTE_WEIGHTS = 7
+const val ATTRIBUTE_CUSTOM = 8
+const val ALPHA_OPAQUE = 0
+const val ALPHA_MASK = 1
+const val ALPHA_BLEND = 2
 
 class KExtension(
     val name: String,
@@ -311,10 +321,10 @@ class KNode(
     val camera: Int,
     val light: Int,
     val weights: Floats,
-    val translation: Floats,
-    val rotation: Floats,
-    val scale: Floats,
-    val matrix: Floats,
+    translation: Floats?,
+    rotation: Floats?,
+    scale: Floats?,
+    matrix: Floats?,
     val hasMatrix: Boolean,
     val hasTranslation: Boolean,
     val hasRotation: Boolean,
@@ -322,7 +332,21 @@ class KNode(
     val instancing: Array<KAttribute>,
     extras: String?,
     extensions: Array<KExtension>,
-) : KProperty(name, extras, extensions)
+) : KProperty(name, extras, extensions) {
+    internal var translationValues: Floats? = translation
+        private set
+    internal var rotationValues: Floats? = rotation
+        private set
+    internal var scaleValues: Floats? = scale
+        private set
+    internal var matrixValues: Floats? = matrix
+        private set
+
+    val translation: Floats get() = translationValues ?: defaultTranslation.copyOf().also { translationValues = it }
+    val rotation: Floats get() = rotationValues ?: defaultRotation.copyOf().also { rotationValues = it }
+    val scale: Floats get() = scaleValues ?: defaultScale.copyOf().also { scaleValues = it }
+    val matrix: Floats get() = matrixValues ?: defaultMatrix.copyOf().also { matrixValues = it }
+}
 
 class KScene(
     name: String?,
@@ -438,3 +462,13 @@ class KotlinGltf(
     var binSize: Int = 0
         internal set
 }
+
+internal val defaultTranslation: Floats = floatArrayOf(0f, 0f, 0f)
+internal val defaultRotation: Floats = floatArrayOf(0f, 0f, 0f, 1f)
+internal val defaultScale: Floats = floatArrayOf(1f, 1f, 1f)
+internal val defaultMatrix: Floats = floatArrayOf(
+    1f, 0f, 0f, 0f,
+    0f, 1f, 0f, 0f,
+    0f, 0f, 1f, 0f,
+    0f, 0f, 0f, 1f
+)

@@ -4,12 +4,13 @@ import com.varlanv.klab.collections.Floats
 import com.varlanv.klab.collections.MutBytes
 import com.varlanv.klab.collections.MutFloats
 import com.varlanv.klab.collections.MutInts
-import com.varlanv.klab.glb.*
+import com.varlanv.klab.glb.kotlin.*
 import com.varlanv.klab.sdl3.*
 import java.io.InputStream
 import java.lang.foreign.MemorySegment
 import java.lang.foreign.SegmentAllocator
 import java.lang.foreign.ValueLayout
+import java.nio.ByteOrder
 import javax.imageio.ImageIO
 import javax.imageio.stream.MemoryCacheImageInputStream
 
@@ -35,18 +36,24 @@ class GpuModel private constructor(
 
     companion object {
         context(gpa: SegmentAllocator)
-        internal fun upload(device: Sdl3GpuDevice, source: GlbModel): GpuModel {
-            require(source.skinCount == 0 && source.animationCount == 0) { "GPU models currently support static scenes" }
+        internal fun upload(device: Sdl3GpuDevice, source: KotlinGltf): GpuModel {
+            require(source.skins.isEmpty() && source.animations.isEmpty()) { "GPU models currently support static scenes" }
             val resources = ArrayList<AutoCloseable>()
             val transfers = ArrayList<AutoCloseable>()
             var uploadFailure: Throwable? = null
             try {
                 device.acquireCommandBuffer().use { command ->
                     val result = command.beginCopyPass().use { copy ->
-                        val upload = ModelUpload(device = device, source = source, copy = copy, resources = resources, transfers = transfers)
+                        val upload = ModelUpload(
+                            device = device,
+                            source = source,
+                            copy = copy,
+                            resources = resources,
+                            transfers = transfers
+                        )
                         val nodes = upload.nodes()
                         require(nodes.isNotEmpty()) { "GLB scene contains no meshes" }
-                        val meshes = MutableList<List<GpuModelPrimitive>>(source.meshCount) { emptyList() }
+                        val meshes = MutableList<List<GpuModelPrimitive>>(source.meshes.size) { emptyList() }
                         for (node in nodes) {
                             if (meshes[node.meshIndex].isEmpty()) meshes[node.meshIndex] = upload.mesh(node.meshIndex)
                         }
@@ -85,7 +92,7 @@ internal class GpuModelMaterial(
 
 private class ModelUpload(
     private val device: Sdl3GpuDevice,
-    private val source: GlbModel,
+    private val source: KotlinGltf,
     private val copy: Sdl3GpuCopyPass,
     private val resources: MutableList<AutoCloseable>,
     private val transfers: MutableList<AutoCloseable>,
@@ -95,66 +102,68 @@ private class ModelUpload(
     private val images = HashMap<Int, Sdl3GpuSampledTexture>()
     private val samplers = HashMap<ModelSampler, Sdl3GpuSampler>()
 
-    context(gpa: SegmentAllocator)
     fun nodes(): List<GpuModelNode> {
         val result = ArrayList<GpuModelNode>()
         val pending = ArrayDeque<Int>()
-        val sceneIndex = source.defaultSceneIndex ?: if (source.sceneCount > 0) 0 else null
+        val sceneIndex = source.scene.takeIf { it >= 0 } ?: if (source.scenes.isNotEmpty()) 0 else null
         if (sceneIndex != null) {
-            val scene = source.scene(sceneIndex)
-            for (index in scene.nodeCount - 1 downTo 0) pending.addLast(scene.nodeIndex(index))
+            val scene = source.scenes[sceneIndex]
+            for (index in scene.nodes.size - 1 downTo 0) pending.addLast(scene.nodes[index])
         } else {
-            for (index in source.nodeCount - 1 downTo 0) {
-                if (source.node(index).parentIndex == null) pending.addLast(index)
+            for (index in source.nodes.size - 1 downTo 0) {
+                if (source.nodes[index].parent < 0) pending.addLast(index)
             }
         }
-        val matrix = gpa.allocate(64, 4)
+        val scratch = MutFloats(16)
         while (pending.isNotEmpty()) {
-            val node = source.node(pending.removeLast())
-            require(!node.hasSkin) { "Skinned nodes are not supported yet" }
-            val meshIndex = node.meshIndex
-            if (meshIndex != null) {
+            val nodeIndex = pending.removeLast()
+            val node = source.nodes[nodeIndex]
+            require(node.skin < 0) { "Skinned nodes are not supported yet" }
+            val meshIndex = node.mesh
+            if (meshIndex >= 0) {
                 val transform = MutFloats(16)
-                node.copyWorldTransformTo(matrix)
-                MemorySegment.copy(matrix, 0L, MemorySegment.ofArray(transform), 0L, 64L)
+                source.copyWorldTransformTo(nodeIndex = nodeIndex, destination = transform, scratch = scratch)
                 result.add(GpuModelNode(meshIndex = meshIndex, transform = transform))
             }
-            for (index in node.childCount - 1 downTo 0) pending.addLast(node.childIndex(index))
+            for (index in node.children.size - 1 downTo 0) pending.addLast(node.children[index])
         }
         return result
     }
 
     context(gpa: SegmentAllocator)
     fun mesh(index: Int): List<GpuModelPrimitive> {
-        val mesh = source.mesh(index)
-        return List(mesh.primitiveCount) { primitive(mesh.primitive(it)) }
+        val mesh = source.meshes[index]
+        return List(mesh.primitives.size) { primitive(mesh.primitives[it]) }
     }
 
     context(gpa: SegmentAllocator)
-    private fun primitive(primitive: GlbPrimitive): GpuModelPrimitive {
-        require(primitive.type == GlbPrimitiveType.Triangles) { "GPU models currently require triangle lists" }
-        require(primitive.morphTargetCount == 0) { "Morph targets are not supported yet" }
-        require(primitive.findAttribute(GlbAttributeSemantic.Color) == null) { "Vertex colors are not supported yet" }
-        require(primitive.findAttribute(GlbAttributeSemantic.Joints) == null &&
-                primitive.findAttribute(GlbAttributeSemantic.Weights) == null) { "Skinned meshes are not supported yet" }
-        val position = checkNotNull(primitive.findAttribute(GlbAttributeSemantic.Position)) { "Mesh has no positions" }
-        val count = Math.toIntExact(position.count)
+    private fun primitive(primitive: KPrimitive): GpuModelPrimitive {
+        require(primitive.mode == GLTF_PRIMITIVE_TRIANGLES) { "GPU models currently require triangle lists" }
+        require(primitive.targets.isEmpty()) { "Morph targets are not supported yet" }
+        require(primitive.accessorIndex(ATTRIBUTE_COLOR) == null) { "Vertex colors are not supported yet" }
+        require(
+            primitive.accessorIndex(ATTRIBUTE_JOINTS) == null &&
+                    primitive.accessorIndex(ATTRIBUTE_WEIGHTS) == null
+        ) { "Skinned meshes are not supported yet" }
+        val position = checkNotNull(primitive.accessorIndex(ATTRIBUTE_POSITION)) { "Mesh has no positions" }
+        val count = source.accessors[position].count
         require(count > 0)
         val positions = floats(accessor = position, components = 3, count = count)
-        val normal = primitive.findAttribute(GlbAttributeSemantic.Normal)
+        val normal = primitive.accessorIndex(ATTRIBUTE_NORMAL)
         val normals = normal?.let { floats(accessor = it, components = 3, count = count) }
-        val uv = primitive.findAttribute(GlbAttributeSemantic.TexCoord)
+        val uv = primitive.accessorIndex(ATTRIBUTE_TEXCOORD)
         val uvs = uv?.let { floats(accessor = it, components = 2, count = count) }
-        val material = material(primitive.materialIndex)
+        val material = material(primitive.material.takeIf { it >= 0 })
         if (material.texture.width > 1 || material.texture.height > 1) {
             require(uv != null) { "Textured meshes require TEXCOORD_0" }
         }
-        val inputIndices = primitive.indices
-        val indexCount = inputIndices?.let { Math.toIntExact(it.count) } ?: count
+        val inputIndices = primitive.indices.takeIf { it >= 0 }
+        val indexCount = inputIndices?.let { source.accessors[it].count } ?: count
         require(indexCount > 0 && indexCount % 3 == 0) { "Triangle index count must be divisible by three" }
         val vertexBytes = Math.multiplyExact(count, 32)
         val indexBytes = Math.multiplyExact(indexCount, 4)
-        val vertexBuffer = device.createBuffer(usage = Sdl3GpuBufferUsage.Vertex, size = vertexBytes).also(resources::add)
+        val vertexBuffer =
+            device.createBuffer(usage = Sdl3GpuBufferUsage.Vertex, size = vertexBytes).also(resources::add)
         val indexBuffer = device.createBuffer(usage = Sdl3GpuBufferUsage.Index, size = indexBytes).also(resources::add)
         val transfer = device.createTransferBuffer(Math.addExact(vertexBytes, indexBytes)).also(transfers::add)
         val mapped = transfer.map(cycle = false)
@@ -163,22 +172,26 @@ private class ModelUpload(
                 val target = vertex.toLong() * 32L
                 val positionOffset = vertex * positions.stride
                 for (component in 0..2) {
-                    mapped.set(ValueLayout.JAVA_FLOAT, target + component * 4L,
-                        positions.data.get(ValueLayout.JAVA_FLOAT, positionOffset + component * 4L))
+                    mapped.set(
+                        ValueLayout.JAVA_FLOAT, target + component * 4L,
+                        positions.data.get(positions.layout, positionOffset + component * 4L)
+                    )
                 }
                 for (component in 0..2) {
-                    val value = normals?.data?.get(ValueLayout.JAVA_FLOAT, vertex * normals.stride + component * 4L)
+                    val value = normals?.data?.get(normals.layout, vertex * normals.stride + component * 4L)
                         ?: if (component == 1) 1f else 0f
                     mapped.set(ValueLayout.JAVA_FLOAT, target + 12L + component * 4L, value)
                 }
                 for (component in 0..1) {
-                    val value = uvs?.data?.get(ValueLayout.JAVA_FLOAT, vertex * uvs.stride + component * 4L) ?: 0f
+                    val value = uvs?.data?.get(uvs.layout, vertex * uvs.stride + component * 4L) ?: 0f
                     mapped.set(ValueLayout.JAVA_FLOAT, target + 24L + component * 4L, value)
                 }
             }
             val outputIndices = mapped.asSlice(vertexBytes.toLong(), indexBytes.toLong())
             if (inputIndices != null) {
-                inputIndices.copyIndicesTo(outputIndices)
+                val indices = MutInts(indexCount)
+                source.copyIndicesTo(accessorIndex = inputIndices, destination = indices)
+                MemorySegment.copy(MemorySegment.ofArray(indices), 0L, outputIndices, 0L, indexBytes.toLong())
             } else {
                 for (index in 0 until indexCount) outputIndices.setAtIndex(ValueLayout.JAVA_INT, index.toLong(), index)
             }
@@ -186,36 +199,52 @@ private class ModelUpload(
             transfer.unmap()
         }
         copy.upload(source = transfer, destination = vertexBuffer, size = vertexBytes, cycle = false)
-        copy.upload(source = transfer, destination = indexBuffer, size = indexBytes, sourceOffset = vertexBytes, cycle = false)
-        return GpuModelPrimitive(vertices = vertexBuffer, indices = indexBuffer, indexCount = indexCount, material = material)
+        copy.upload(
+            source = transfer,
+            destination = indexBuffer,
+            size = indexBytes,
+            sourceOffset = vertexBytes,
+            cycle = false
+        )
+        return GpuModelPrimitive(
+            vertices = vertexBuffer,
+            indices = indexBuffer,
+            indexCount = indexCount,
+            material = material
+        )
     }
 
-    context(gpa: SegmentAllocator)
-    private fun floats(accessor: GlbAccessor, components: Int, count: Int): ModelAttribute {
-        require(accessor.elementType.componentCount == components && accessor.count == count.toLong()) { "Invalid mesh attribute layout" }
-        if (accessor.componentType == GlbComponentType.Float && !accessor.normalized && !accessor.sparse) {
-            val raw = accessor.rawBytes()
-            if (raw != null) return ModelAttribute(data = raw, stride = accessor.strideBytes)
+    private fun floats(accessor: Int, components: Int, count: Int): ModelAttribute {
+        val data = source.accessors[accessor]
+        require(componentCount(data.type) == components && data.count == count) { "Invalid mesh attribute layout" }
+        if (data.componentType == GLTF_COMPONENT_FLOAT && !data.normalized && data.sparse == null && data.bufferView >= 0) {
+            val size = (count - 1L) * data.stride + components * 4L
+            val raw =
+                MemorySegment.ofBuffer(source.bufferViewBytes(data.bufferView)).asSlice(data.offset.toLong(), size)
+            return ModelAttribute(data = raw, stride = data.stride.toLong(), layout = gltfFloatLayout)
         }
-        val stride = components * 4L
-        val data = gpa.allocate(Math.multiplyExact(count.toLong(), stride), 4)
-        accessor.copyFloatsTo(data)
-        return ModelAttribute(data = data, stride = stride)
+        val values = MutFloats(Math.multiplyExact(count, components))
+        source.copyFloatsTo(accessorIndex = accessor, destination = values)
+        return ModelAttribute(
+            data = MemorySegment.ofArray(values),
+            stride = components * 4L,
+            layout = ValueLayout.JAVA_FLOAT
+        )
     }
 
     context(gpa: SegmentAllocator)
     private fun material(index: Int?): GpuModelMaterial = materials.getOrPut(index ?: -1) {
-        val material = index?.let(source::material)
-        require(material?.alphaMode != GlbAlphaMode.Blend) { "Transparent model materials are not supported yet" }
-        val binding = material?.baseColorTexture
-        require(binding == null || !binding.hasTransform) { "Texture transforms are not supported yet" }
+        val material = index?.let { source.materials[it] }
+        require(material?.alphaMode != ALPHA_BLEND) { "Transparent model materials are not supported yet" }
+        val binding = material?.metallicRoughness?.baseColorTexture
+        require(binding == null || binding.transform == null) { "Texture transforms are not supported yet" }
         require(binding == null || binding.texCoord == 0) { "Model materials currently require TEXCOORD_0" }
-        val textureIndex = binding?.textureIndex
-        val texture = textureIndex?.let(source::texture)
-        val imageIndex = texture?.imageIndex
+        val textureIndex = binding?.texture?.takeIf { it >= 0 }
+        val texture = textureIndex?.let { source.textures[it] }
+        val imageIndex = texture?.image?.takeIf { it >= 0 }
         require(textureIndex == null || imageIndex != null) { "Texture has no supported image source" }
         val image = images.getOrPut(imageIndex ?: -1) { image(imageIndex) }
-        val sourceSampler = texture?.sampler
+        val sourceSampler = texture?.sampler?.takeIf { it >= 0 }?.let { source.samplers[it] }
         val settings = ModelSampler(
             minFilter = filter(sourceSampler?.minFilter ?: 9729),
             magFilter = filter(sourceSampler?.magFilter ?: 9729),
@@ -228,10 +257,10 @@ private class ModelUpload(
                 addressModeU = settings.addressModeU, addressModeV = settings.addressModeV,
             ).also(resources::add)
         }
-        val color = MutFloats(4) { material?.baseColorFactor(it) ?: 1f }
+        val color = MutFloats(4) { material?.metallicRoughness?.baseColorFactor?.get(it) ?: 1f }
         GpuModelMaterial(
             texture = image, sampler = sampler, baseColor = color,
-            alphaCutoff = if (material?.alphaMode == GlbAlphaMode.Mask) material.alphaCutoff else -1f,
+            alphaCutoff = if (material?.alphaMode == ALPHA_MASK) material.alphaCutoff else -1f,
             unlit = material?.unlit ?: false,
         )
     }
@@ -241,9 +270,10 @@ private class ModelUpload(
         if (index == null) {
             return uploadImage(width = 1, height = 1) { it.fill(0xff.toByte()) }
         }
-        val image = source.image(index)
+        val image = source.images[index]
         require(image.mimeType == "image/png" || image.mimeType == "image/jpeg") { "Unsupported model image format: ${image.mimeType}" }
-        val encoded = checkNotNull(image.encodedBytes()) { "External model images require a resource resolver" }
+        require(image.bufferView >= 0) { "External model images require a resource resolver" }
+        val encoded = MemorySegment.ofBuffer(source.bufferViewBytes(image.bufferView))
         val decoded = MemoryCacheImageInputStream(SegmentInputStream(encoded)).use { input ->
             val readers = ImageIO.getImageReaders(input)
             check(readers.hasNext()) { "Could not decode model image" }
@@ -291,7 +321,16 @@ private class ModelUpload(
     }
 }
 
-private class ModelAttribute(val data: MemorySegment, val stride: Long)
+private val gltfFloatLayout = ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN)
+
+private class ModelAttribute(val data: MemorySegment, val stride: Long, val layout: ValueLayout.OfFloat)
+
+private fun KPrimitive.accessorIndex(semantic: Int): Int? {
+    for (attribute in attributes) {
+        if (attribute.semantic == semantic && attribute.set == 0) return attribute.accessor
+    }
+    return null
+}
 
 private data class ModelSampler(
     val minFilter: Sdl3GpuFilter,

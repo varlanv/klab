@@ -21,16 +21,10 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
         .link_libc = true,
     });
-    module.addIncludePath(b.path("external"));
-    module.addCSourceFile(.{
-        .file = b.path("src/cgltf.c"),
-        .flags = &.{"-std=c99"},
-    });
     const lib = b.addLibrary(.{
         .linkage = .dynamic,
         .name = libName,
         .root_module = module,
-        .win32_module_definition = if (target.result.os.tag == .windows) b.path("src/klabZig.def") else null,
     });
     lib.rdynamic = true;
     b.installArtifact(lib);

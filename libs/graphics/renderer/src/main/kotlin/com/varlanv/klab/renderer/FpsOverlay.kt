@@ -18,7 +18,7 @@ class FpsOverlay(private val text: Text) {
             return
         }
         val elapsed = now - sampleStart
-        assert(elapsed >= 0L)
+        check(elapsed >= 0L)
         if (elapsed >= FPS_UPDATE_INTERVAL) {
             val fps = (frameCount * NANOS_IN_SECOND / elapsed).roundToInt()
             text.setText("FPS: $fps")

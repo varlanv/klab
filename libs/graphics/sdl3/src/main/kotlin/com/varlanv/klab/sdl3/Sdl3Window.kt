@@ -18,10 +18,6 @@ class Sdl3Window internal constructor(internal var handle: MemorySegment) : Auto
             return (SDL3.SDL_GetWindowFlags(handle) and SDL3.SDL_WINDOW_INPUT_FOCUS()) != 0L
         }
 
-    internal fun checkOpen() {
-        check(handle.address() != 0L) { "Window is closed" }
-    }
-
     fun setRelativeMouseMode(enabled: Boolean) {
         checkOpen()
         check(SDL3.SDL_SetWindowRelativeMouseMode(handle, enabled)) {
@@ -49,5 +45,9 @@ class Sdl3Window internal constructor(internal var handle: MemorySegment) : Auto
             SDL3.SDL_DestroyWindow(handle)
             handle = MemorySegment.NULL
         }
+    }
+
+    internal fun checkOpen() {
+        check(handle.address() != 0L) { "Window is closed" }
     }
 }

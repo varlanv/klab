@@ -2,8 +2,9 @@ package com.varlanv.klab.renderer
 
 import com.varlanv.klab.Io
 import com.varlanv.klab.collections.Bytes
-import com.varlanv.klab.glb.GlbModel
+import com.varlanv.klab.glb.kotlin.KotlinGltf
 import com.varlanv.klab.sdl3.*
+import java.lang.foreign.MemorySegment
 import java.lang.foreign.SegmentAllocator
 import kotlin.math.ceil
 
@@ -97,7 +98,7 @@ class Renderer private constructor(
     }
 
     context(gpa: SegmentAllocator)
-    fun uploadModel(source: GlbModel): GpuModel {
+    fun uploadModel(source: KotlinGltf): GpuModel {
         checkOpen()
         return models.upload(source)
     }
@@ -182,10 +183,6 @@ class Renderer private constructor(
         sdl.delayPrecise(duration - (sdl.ticksNs() - frameStart))
     }
 
-    private fun checkOpen() {
-        check(!closed) { "Renderer is closed" }
-    }
-
     override fun close() {
         if (!closed) {
             closed = true
@@ -200,9 +197,13 @@ class Renderer private constructor(
         }
     }
 
+    private fun checkOpen() {
+        check(!closed) { "Renderer is closed" }
+    }
+
     companion object {
         context(gpa: SegmentAllocator)
-        fun create(title: String): Renderer {
+        fun create(title: MemorySegment): Renderer {
             val sdl = Sdl3.init()
             var device: Sdl3GpuDevice? = null
             var window: Sdl3Window? = null

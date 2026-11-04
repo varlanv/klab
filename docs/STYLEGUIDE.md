@@ -24,6 +24,14 @@
    preferred to have two arrays as SOA instead of array of objects with 2 fields. Additionally, it in some cases it
    might be preferred to pack/unpack multiple values in/from single Long/Int
    via [VarHandles.kt](../libs/lang/src/main/kotlin/com/varlanv/klab/VarHandles.kt).
+2. `kotlin.String` usage is discouraged. In most cases, working directly with utf8 byte slices via `Str`, `BytesSlice`
+   or `Bytes` will lead to better performance. Consider using `kotlin.String` only for:
+    1) debugging
+    2) testing
+    3) error messages
+    4) logging
+    5) integrating with JDK / Kotlin SDK APIs. or as an utility
+    6) to create immutable utf8 bytes in global scope.
 
 ### Style
 

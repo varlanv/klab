@@ -90,6 +90,7 @@ interface InternalKonventionExtension {
         project.tasks.withType(JavaExec::class.java).configureEach {
             val additionalArgs = mutableListOf<String>()
             additionalArgs.add("--enable-native-access=ALL-UNNAMED")
+            additionalArgs.add("--add-modules=jdk.incubator.vector")
             if (optimize == Optimize.Debug) {
                 additionalArgs.add("-ea")
             }

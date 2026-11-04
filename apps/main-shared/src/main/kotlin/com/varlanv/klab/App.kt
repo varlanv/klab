@@ -1,6 +1,6 @@
 package com.varlanv.klab
 
-import com.varlanv.klab.glb.GlbLoader
+import com.varlanv.klab.glb.kotlin.KotlinGltfLoader
 import com.varlanv.klab.log.Log
 import com.varlanv.klab.renderer.GpuModel
 import com.varlanv.klab.renderer.FpsOverlay
@@ -16,18 +16,17 @@ class App private constructor(private val init: Init) {
     )
 
     fun start() {
-        context(Io(log = init.log)) {
-            Arena.ofConfined().use { arena ->
-                context(arena) {
-                    Renderer.create(title = "klab").use { renderer ->
-                        val duck = loadDuck(renderer)
-                        val fontData = checkNotNull(App::class.java.getResourceAsStream("/fonts/LiberationMono-Regular.ttf"))
+        Arena.ofConfined().use { arena ->
+            context(arena, Io(log = init.log)) {
+                Renderer.create(title = arena.allocateFrom("klab")).use { renderer ->
+                    val duck = loadDuck(renderer)
+                    val fontData =
+                        checkNotNull(App::class.java.getResourceAsStream("/fonts/LiberationMono-Regular.ttf"))
                             .use { it.readAllBytes() }
-                        renderer.openFont(data = fontData, pointSize = 20f).use { font ->
-                            renderer.text.createText(font = font, text = "FPS: --").use { text ->
-                                text.setPosition(x = 16f, y = 16f)
-                                runLoop(renderer = renderer, fps = FpsOverlay(text), duck = duck)
-                            }
+                    renderer.openFont(data = fontData, pointSize = 20f).use { font ->
+                        renderer.text.createText(font = font, text = "FPS: --").use { text ->
+                            text.setPosition(x = 16f, y = 16f)
+                            runLoop(renderer = renderer, fps = FpsOverlay(text), duck = duck)
                         }
                     }
                 }
@@ -40,7 +39,7 @@ class App private constructor(private val init: Init) {
             context(loading) {
                 val data = checkNotNull(App::class.java.getResourceAsStream("/assets/models/duck/Duck.glb"))
                     .use { it.readAllBytes() }
-                GlbLoader.load(data).use { source -> renderer.uploadModel(source) }
+                renderer.uploadModel(KotlinGltfLoader().load(data))
             }
         }
     }

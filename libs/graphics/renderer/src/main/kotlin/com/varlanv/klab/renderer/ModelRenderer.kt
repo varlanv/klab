@@ -2,7 +2,7 @@ package com.varlanv.klab.renderer
 
 import com.varlanv.klab.collections.Bytes
 import com.varlanv.klab.collections.MutFloats
-import com.varlanv.klab.glb.GlbModel
+import com.varlanv.klab.glb.kotlin.KotlinGltf
 import com.varlanv.klab.sdl3.*
 import java.lang.foreign.MemorySegment
 import java.lang.foreign.SegmentAllocator
@@ -22,7 +22,7 @@ internal class ModelRenderer private constructor(
     val hasGeometry: Boolean get() = queued.isNotEmpty()
 
     context(gpa: SegmentAllocator)
-    fun upload(source: GlbModel): GpuModel {
+    fun upload(source: KotlinGltf): GpuModel {
         checkOpen()
         val model = GpuModel.upload(device = device, source = source)
         try {

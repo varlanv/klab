@@ -27,9 +27,14 @@ internal object GltfIndexDecoder {
         val end = shortsSpecies.loopBound(count)
         val half = intsSpecies.length()
         while (index < end) {
-            var lanes = ByteVector.fromArray(bytesSpecies, bytes, start + index * Short.SIZE_BYTES).reinterpretAsShorts()
+            var lanes =
+                ByteVector.fromArray(bytesSpecies, bytes, start + index * Short.SIZE_BYTES).reinterpretAsShorts()
             if (swapBytes) lanes = lanes.lanewise(VectorOperators.REVERSE_BYTES)
-            (lanes.convertShape(VectorOperators.ZERO_EXTEND_S2I, intsSpecies, VECTOR_PART_0) as IntVector).intoArray(out, index)
+            (lanes.convertShape(
+                VectorOperators.ZERO_EXTEND_S2I,
+                intsSpecies,
+                VECTOR_PART_0
+            ) as IntVector).intoArray(out, index)
             (lanes.convertShape(VectorOperators.ZERO_EXTEND_S2I, intsSpecies, VECTOR_PART_1) as IntVector).intoArray(
                 out,
                 index + half
@@ -37,7 +42,8 @@ internal object GltfIndexDecoder {
             index += shortsSpecies.length()
         }
         while (index < count) {
-            out[index] = (shortViewHandle.get(bytes, start + index * Short.SIZE_BYTES) as Short).toInt() and UNSIGNED_SHORT_MASK
+            out[index] =
+                (shortViewHandle.get(bytes, start + index * Short.SIZE_BYTES) as Short).toInt() and UNSIGNED_SHORT_MASK
             index++
         }
     }
@@ -48,7 +54,11 @@ internal object GltfIndexDecoder {
         val quarter = intsSpecies.length()
         while (index < end) {
             val lanes = ByteVector.fromArray(bytesSpecies, bytes, start + index)
-            (lanes.convertShape(VectorOperators.ZERO_EXTEND_B2I, intsSpecies, VECTOR_PART_0) as IntVector).intoArray(out, index)
+            (lanes.convertShape(
+                VectorOperators.ZERO_EXTEND_B2I,
+                intsSpecies,
+                VECTOR_PART_0
+            ) as IntVector).intoArray(out, index)
             (lanes.convertShape(VectorOperators.ZERO_EXTEND_B2I, intsSpecies, VECTOR_PART_1) as IntVector).intoArray(
                 out,
                 index + quarter

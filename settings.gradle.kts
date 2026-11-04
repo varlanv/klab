@@ -40,15 +40,16 @@ include(
         // libs
         "libs:lang",
         "libs:graphics:renderer",
+        "libs:graphics:renderer-api",
         "libs:graphics:glb-loader",
         "libs:graphics:sdl3",
         "libs:graphics:sdl3-ffi-generated",
         // shaders
         "shaders:slang-binary",
         "shaders:shaders-primitive",
-        // native,
-        "native:zig-lib",
-        "native:zig-binary",
+        // native
+//        "native:zig-lib",
+//        "native:zig-binary",
         // tests
         "testing:common-test",
     )

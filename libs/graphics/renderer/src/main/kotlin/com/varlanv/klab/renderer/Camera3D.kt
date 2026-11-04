@@ -2,12 +2,7 @@ package com.varlanv.klab.renderer
 
 import java.lang.foreign.MemorySegment
 import java.lang.foreign.ValueLayout
-import kotlin.math.asin
-import kotlin.math.atan2
-import kotlin.math.cos
-import kotlin.math.sin
-import kotlin.math.sqrt
-import kotlin.math.tan
+import kotlin.math.*
 
 private const val MAX_PITCH = (89.0 * Math.PI / 180.0).toFloat()
 private const val TWO_PI = 2.0 * Math.PI

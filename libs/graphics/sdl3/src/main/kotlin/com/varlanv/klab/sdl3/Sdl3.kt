@@ -16,10 +16,9 @@ class Sdl3 private constructor(private val event: MemorySegment) : AutoCloseable
         check(initialized) { "SDL is closed" }
     }
 
-    context(gpa: SegmentAllocator)
-    fun createWindow(title: String, width: Int, height: Int): Sdl3Window {
+    fun createWindow(title: MemorySegment, width: Int, height: Int): Sdl3Window {
         checkOpen()
-        val handle = SDL3.SDL_CreateWindow(gpa.allocateFrom(title), width, height, 0L)
+        val handle = SDL3.SDL_CreateWindow(title, width, height, 0L)
         check(handle.address() != 0L) { errorMessage("Failed to create window") }
         return Sdl3Window(handle)
     }
@@ -37,7 +36,11 @@ class Sdl3 private constructor(private val event: MemorySegment) : AutoCloseable
 
     fun createGpuDevice(): Sdl3GpuDevice {
         checkOpen()
-        val handle = SDL3.SDL_CreateGPUDevice(SDL3.SDL_GPU_SHADERFORMAT_SPIRV(), false, MemorySegment.NULL)
+        val handle = SDL3.SDL_CreateGPUDevice(
+            SDL3.SDL_GPU_SHADERFORMAT_SPIRV(),
+            false,
+            MemorySegment.NULL,
+        )
         check(handle.address() != 0L) { errorMessage("Failed to create GPU device") }
         return Sdl3GpuDevice(handle)
     }

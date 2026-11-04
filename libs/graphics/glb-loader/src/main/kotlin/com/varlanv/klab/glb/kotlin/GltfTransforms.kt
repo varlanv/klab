@@ -56,15 +56,15 @@ fun KotlinGltf.copyWorldTransformTo(nodeIndex: Int, destination: MutFloats, scra
 
 private fun localTransform(node: KNode, out: MutFloats) {
     if (node.hasMatrix) {
-        node.matrix.copyInto(out, 0, 0, MAT4_COMPONENTS); return
+        (node.matrixValues ?: defaultMatrix).copyInto(out, 0, 0, MAT4_COMPONENTS); return
     }
-    val qx = node.rotation[VECTOR_X];
-    val qy = node.rotation[VECTOR_Y];
-    val qz = node.rotation[VECTOR_Z];
-    val qw = node.rotation[VECTOR_W]
-    val sx = node.scale[VECTOR_X];
-    val sy = node.scale[VECTOR_Y];
-    val sz = node.scale[VECTOR_Z]
+    val qx = (node.rotationValues ?: defaultRotation)[VECTOR_X];
+    val qy = (node.rotationValues ?: defaultRotation)[VECTOR_Y];
+    val qz = (node.rotationValues ?: defaultRotation)[VECTOR_Z];
+    val qw = (node.rotationValues ?: defaultRotation)[VECTOR_W]
+    val sx = (node.scaleValues ?: defaultScale)[VECTOR_X];
+    val sy = (node.scaleValues ?: defaultScale)[VECTOR_Y];
+    val sz = (node.scaleValues ?: defaultScale)[VECTOR_Z]
     out[M00] = (1 - 2 * qy * qy - 2 * qz * qz) * sx
     out[M10] = (2 * qx * qy + 2 * qz * qw) * sx
     out[M20] = (2 * qx * qz - 2 * qy * qw) * sx
@@ -77,9 +77,9 @@ private fun localTransform(node: KNode, out: MutFloats) {
     out[M12] = (2 * qy * qz - 2 * qx * qw) * sz
     out[M22] = (1 - 2 * qx * qx - 2 * qy * qy) * sz
     out[M32] = 0f
-    out[M03] = node.translation[VECTOR_X]
-    out[M13] = node.translation[VECTOR_Y]
-    out[M23] = node.translation[VECTOR_Z]
+    out[M03] = (node.translationValues ?: defaultTranslation)[VECTOR_X]
+    out[M13] = (node.translationValues ?: defaultTranslation)[VECTOR_Y]
+    out[M23] = (node.translationValues ?: defaultTranslation)[VECTOR_Z]
     out[M33] = 1f
 }
 
