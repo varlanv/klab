@@ -70,11 +70,10 @@ class Text internal constructor(
         this.alpha = alpha
     }
 
-    context(gpa: SegmentAllocator)
-    internal fun prepare() {
+    internal fun prepare(gpa: SegmentAllocator) {
         checkOpen()
         if (!dirty) return
-        native.setText(content)
+        native.setText(gpa,content)
         val first = native.drawData()
         var sequence = first
         var verticesNeeded = 0

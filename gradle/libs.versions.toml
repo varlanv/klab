@@ -10,12 +10,13 @@ kotlinxBenchmarkVersion = "0.5.0"
 koverVersion = "0.9.11"
 kspVersion = "2.3.13"
 proguardVersion = "7.10.0"
-versionCatalogPluginVersion = "1.1.2"
 slangVersion = "2026.20"
+versionCatalogPluginVersion = "1.1.2"
 zigVersion = "0.17.0"
 
 [libraries]
 jmh-core = { module = "org.openjdk.jmh:jmh-core", version.ref = "jmhVersion" }
+jmh-gradle = { module = "me.champeau.jmh:me.champeau.jmh.gradle.plugin", version.ref = "jmhPluginVersion" }
 junit-jupiter-engine = { module = "org.junit.jupiter:junit-jupiter-engine", version.ref = "junitJupiterVersion" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junitPlatformVersion" }
 kotlin-gradle-allopen = { module = "org.jetbrains.kotlin:kotlin-allopen", version.ref = "kotlinVersion" }
@@ -32,16 +33,15 @@ ksp-aaEmbeddable = { module = "com.google.devtools.ksp:symbol-processing-aa-embe
 ksp-api = { module = "com.google.devtools.ksp:symbol-processing-api", version.ref = "kspVersion" }
 ksp-commonDeps = { module = "com.google.devtools.ksp:symbol-processing-common-deps", version.ref = "kspVersion" }
 proguard-gradle = { module = "com.guardsquare:proguard-gradle", version.ref = "proguardVersion" }
-jmh-gradle = { module = "me.champeau.jmh:me.champeau.jmh.gradle.plugin", version.ref = "jmhPluginVersion" }
 
 [plugins]
 internalBenchmark = { id = "com.varlanv.gradle.internal-benchmark-convention-plugin" }
 internalConvention = { id = "com.varlanv.gradle.internal-gradle-convention-plugin" }
-shadersConvention = { id = "com.varlanv.gradle.internal-gradle-slang-plugin" }
-slangBinaryConvention = { id = "com.varlanv.gradle.internal-gradle-slang-binary-plugin" }
 jmh = { id = "me.champeau.jmh", version.ref = "jmhPluginVersion" }
 kotest = { id = "io.kotest", version.ref = "kotestVersion" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlinVersion" }
 kotlin-kover = { id = "org.jetbrains.kotlinx.kover", version.ref = "koverVersion" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "kspVersion" }
+shadersConvention = { id = "com.varlanv.gradle.internal-gradle-slang-plugin" }
+slangBinaryConvention = { id = "com.varlanv.gradle.internal-gradle-slang-binary-plugin" }
 versionCatalogPlugin = { id = "nl.littlerobots.version-catalog-update", version.ref = "versionCatalogPluginVersion" }

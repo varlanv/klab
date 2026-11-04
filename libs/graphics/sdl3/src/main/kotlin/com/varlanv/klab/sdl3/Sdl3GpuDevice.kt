@@ -63,8 +63,7 @@ class Sdl3GpuDevice internal constructor(internal var handle: MemorySegment) : A
         return Sdl3GpuTextEngine(device = handle, handle = engine)
     }
 
-    context(gpa: SegmentAllocator)
-    fun createBuffer(usage: Sdl3GpuBufferUsage, size: Int): Sdl3GpuBuffer {
+    fun createBuffer(gpa: SegmentAllocator, usage: Sdl3GpuBufferUsage, size: Int): Sdl3GpuBuffer {
         checkOpen()
         require(size > 0)
         val info = SDL_GPUBufferCreateInfo.allocate(gpa).fill(0)
@@ -81,8 +80,7 @@ class Sdl3GpuDevice internal constructor(internal var handle: MemorySegment) : A
         return Sdl3GpuBuffer(device = handle, handle = buffer, size = size, usage = usage)
     }
 
-    context(gpa: SegmentAllocator)
-    fun createTransferBuffer(size: Int): Sdl3GpuTransferBuffer {
+    fun createTransferBuffer(gpa: SegmentAllocator, size: Int): Sdl3GpuTransferBuffer {
         checkOpen()
         require(size > 0)
         val info = SDL_GPUTransferBufferCreateInfo.allocate(gpa).fill(0)
@@ -93,8 +91,7 @@ class Sdl3GpuDevice internal constructor(internal var handle: MemorySegment) : A
         return Sdl3GpuTransferBuffer(device = handle, handle = buffer, size = size)
     }
 
-    context(gpa: SegmentAllocator)
-    fun createDepthTexture(width: Int, height: Int): Sdl3GpuDepthTexture {
+    fun createDepthTexture(gpa: SegmentAllocator, width: Int, height: Int): Sdl3GpuDepthTexture {
         checkOpen()
         require(width > 0 && height > 0)
         val format = depthTextureFormat
@@ -112,8 +109,12 @@ class Sdl3GpuDevice internal constructor(internal var handle: MemorySegment) : A
         return Sdl3GpuDepthTexture(device = handle, handle = texture, width = width, height = height, format = format)
     }
 
-    context(gpa: SegmentAllocator)
-    fun createSampledTexture(width: Int, height: Int, srgb: Boolean = true): Sdl3GpuSampledTexture {
+    fun createSampledTexture(
+        gpa: SegmentAllocator,
+        width: Int,
+        height: Int,
+        srgb: Boolean = true
+    ): Sdl3GpuSampledTexture {
         checkOpen()
         require(width > 0 && height > 0)
         val format = Sdl3GpuTextureFormat(
@@ -133,8 +134,8 @@ class Sdl3GpuDevice internal constructor(internal var handle: MemorySegment) : A
         return Sdl3GpuSampledTexture(device = handle, handle = texture, width = width, height = height, format = format)
     }
 
-    context(gpa: SegmentAllocator)
     fun createSampler(
+        gpa: SegmentAllocator,
         minFilter: Sdl3GpuFilter = Sdl3GpuFilter.Linear,
         magFilter: Sdl3GpuFilter = Sdl3GpuFilter.Linear,
         addressModeU: Sdl3GpuAddressMode = Sdl3GpuAddressMode.ClampToEdge,
@@ -152,8 +153,8 @@ class Sdl3GpuDevice internal constructor(internal var handle: MemorySegment) : A
         return Sdl3GpuSampler(device = handle, handle = sampler)
     }
 
-    context(gpa: SegmentAllocator)
     fun createShader(
+        gpa: SegmentAllocator,
         code: Bytes,
         entrypoint: String,
         stage: Sdl3GpuShaderStage,
@@ -185,8 +186,8 @@ class Sdl3GpuDevice internal constructor(internal var handle: MemorySegment) : A
         return Sdl3GpuShader(device = handle, handle = shader, stage = stage)
     }
 
-    context(gpa: SegmentAllocator)
     fun createGraphicsPipeline(
+        gpa: SegmentAllocator,
         vertexShader: Sdl3GpuShader,
         fragmentShader: Sdl3GpuShader,
         targetFormat: Sdl3GpuTextureFormat,

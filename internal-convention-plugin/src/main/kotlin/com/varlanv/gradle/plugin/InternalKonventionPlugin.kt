@@ -130,7 +130,7 @@ class InternalKonventionPlugin : Plugin<Project> {
                     "-Xms$xms",
                     "-Xmx$xmx",
                     "-Dfile.encoding=UTF-8",
-                    "-Xadd-modules=jdk.incubator.vector",
+                    "--add-modules=jdk.incubator.vector",
                 )
             }
         }

@@ -84,8 +84,8 @@ class Sdl3GpuCopyPass internal constructor(
     private var handle: MemorySegment,
 ) : AutoCloseable {
 
-    context(gpa: SegmentAllocator)
     fun upload(
+        gpa: SegmentAllocator,
         source: Sdl3GpuTransferBuffer,
         destination: Sdl3GpuSampledTexture,
         sourceOffset: Int = 0,
@@ -111,8 +111,8 @@ class Sdl3GpuCopyPass internal constructor(
         SDL3.SDL_UploadToGPUTexture(handle, location, region, cycle)
     }
 
-    context(gpa: SegmentAllocator)
     fun upload(
+        gpa: SegmentAllocator,
         source: Sdl3GpuTransferBuffer,
         destination: Sdl3GpuBuffer,
         size: Int,
@@ -160,8 +160,8 @@ class Sdl3GpuFrame internal constructor(
     private var started = false
     private var initializedDepth: Sdl3GpuDepthTexture? = null
 
-    context(gpa: SegmentAllocator)
     fun beginRenderPass(
+        gpa: SegmentAllocator,
         r: Float = 0f,
         g: Float = 0f,
         b: Float = 0f,
@@ -243,8 +243,7 @@ class Sdl3GpuRenderPass internal constructor(
         pipelineBound = true
     }
 
-    context(gpa: SegmentAllocator)
-    fun bindVertexBuffer(buffer: Sdl3GpuBuffer, offset: Int = 0) {
+    fun bindVertexBuffer(gpa: SegmentAllocator,buffer: Sdl3GpuBuffer, offset: Int = 0) {
         command.checkPass(this)
         buffer.checkOpen()
         check(buffer.device.address() == command.device.address())
@@ -257,8 +256,7 @@ class Sdl3GpuRenderPass internal constructor(
         vertexBufferBound = true
     }
 
-    context(gpa: SegmentAllocator)
-    fun bindIndexBuffer(buffer: Sdl3GpuBuffer, offset: Int = 0) {
+    fun bindIndexBuffer(gpa: SegmentAllocator,buffer: Sdl3GpuBuffer, offset: Int = 0) {
         command.checkPass(this)
         buffer.checkOpen()
         check(buffer.device.address() == command.device.address())
@@ -271,8 +269,7 @@ class Sdl3GpuRenderPass internal constructor(
         indexBytes = buffer.size - offset
     }
 
-    context(gpa: SegmentAllocator)
-    fun bindFragmentSampler(texture: Sdl3GpuTexture, sampler: Sdl3GpuSampler, slot: Int = 0) {
+    fun bindFragmentSampler(gpa: SegmentAllocator,texture: Sdl3GpuTexture, sampler: Sdl3GpuSampler, slot: Int = 0) {
         command.checkPass(this)
         sampler.checkOpen()
         check(sampler.device.address() == command.device.address())

@@ -97,10 +97,9 @@ class Renderer private constructor(
         )
     }
 
-    context(gpa: SegmentAllocator)
-    fun uploadModel(source: KotlinGltf): GpuModel {
+    fun uploadModel(gpa: SegmentAllocator, source: KotlinGltf): GpuModel {
         checkOpen()
-        return models.upload(source)
+        return models.upload(gpa, source)
     }
 
     fun drawModel(model: GpuModel, x: Float, y: Float, z: Float, scale: Float = 1f) {
@@ -133,32 +132,33 @@ class Renderer private constructor(
         return sdl.ticksNs()
     }
 
-    context(gpa: SegmentAllocator)
-    fun renderFrame(): Boolean {
+    fun renderFrame(gpa: SegmentAllocator): Boolean {
         checkOpen()
         try {
-            text.prepare()
+            text.prepare(gpa)
             device.acquireCommandBuffer().use { command ->
-                text.upload(command)
-                primitives.upload(command)
-                val frame = swapchain.acquireFrame(command)
+                text.upload(gpa, command)
+                primitives.upload(gpa, command)
+                val frame = swapchain.acquireFrame(gpa, command)
                 if (frame != null) {
                     val world = primitives.hasWorldGeometry || models.hasGeometry
                     if (world) {
                         val target = depth
                         if (target == null || target.width != frame.width || target.height != frame.height) {
-                            val replacement = device.createDepthTexture(width = frame.width, height = frame.height)
+                            val replacement =
+                                device.createDepthTexture(gpa = gpa, width = frame.width, height = frame.height)
                             target?.close()
                             depth = replacement
                         }
-                        frame.beginRenderPass(r = 1f, g = 1f, b = 1f, depth = checkNotNull(depth)).use { pass ->
-                            primitives.drawWorld(pass)
-                            models.render(pass)
-                        }
+                        frame.beginRenderPass(gpa = gpa, r = 1f, g = 1f, b = 1f, depth = checkNotNull(depth))
+                            .use { pass ->
+                                primitives.drawWorld(gpa, pass)
+                                models.render(gpa, pass)
+                            }
                     }
-                    frame.beginRenderPass(r = 1f, g = 1f, b = 1f, clear = !world).use { pass ->
-                        primitives.drawRectangles(pass)
-                        text.draw(pass)
+                    frame.beginRenderPass(gpa = gpa, r = 1f, g = 1f, b = 1f, clear = !world).use { pass ->
+                        primitives.drawRectangles(gpa, pass)
+                        text.draw(gpa, pass)
                     }
                 }
                 command.submit()
@@ -220,6 +220,7 @@ class Renderer private constructor(
                 swapchain = device.claimWindow(window)
                 ttf = Sdl3Ttf.init()
                 text = TextRenderer.create(
+                    gpa = gpa,
                     device = device,
                     targetFormat = swapchain.textureFormat,
                     shader = resource("/shaders/shaders-primitive/text.spv"),
@@ -232,6 +233,7 @@ class Renderer private constructor(
                     camera = camera,
                 )
                 models = ModelRenderer.create(
+                    gpa = gpa,
                     device = device,
                     targetFormat = swapchain.textureFormat,
                     depthFormat = device.depthTextureFormat,

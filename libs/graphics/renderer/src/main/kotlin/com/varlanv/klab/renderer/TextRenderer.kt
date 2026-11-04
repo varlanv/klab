@@ -41,13 +41,12 @@ class TextRenderer private constructor(
         geometryDirty = true
     }
 
-    context(gpa: SegmentAllocator)
-    fun prepare() {
+    fun prepare(gpa: SegmentAllocator) {
         checkOpen()
         uploadRecorded = false
         for (text in texts) {
             if (text.dirty) {
-                text.prepare()
+                text.prepare(gpa)
                 geometryDirty = true
             }
         }
@@ -66,14 +65,13 @@ class TextRenderer private constructor(
         geometryDirty = false
     }
 
-    context(gpa: SegmentAllocator)
-    fun upload(command: Sdl3GpuCommandBuffer) {
+    fun upload(gpa: SegmentAllocator, command: Sdl3GpuCommandBuffer) {
         checkOpen()
         check(!geometryDirty && texts.none { it.dirty }) { "Prepare text before uploading" }
         if (!uploadPending) return
         val vertexBytes = Math.multiplyExact(vertexCount, 16)
         val indexBytes = Math.multiplyExact(indexCount, 4)
-        val data = mesh.map(vertexBytes = vertexBytes, indexBytes = indexBytes)
+        val data = mesh.map(gpa = gpa, vertexBytes = vertexBytes, indexBytes = indexBytes)
         try {
             for (text in texts) {
                 MemorySegment.copy(
@@ -88,7 +86,7 @@ class TextRenderer private constructor(
         } finally {
             mesh.unmap()
         }
-        mesh.upload(command = command, vertexBytes = vertexBytes, indexBytes = indexBytes)
+        mesh.upload(gpa = gpa, command = command, vertexBytes = vertexBytes, indexBytes = indexBytes)
         uploadRecorded = true
     }
 
@@ -97,15 +95,14 @@ class TextRenderer private constructor(
         uploadRecorded = false
     }
 
-    context(gpa: SegmentAllocator)
-    fun draw(pass: Sdl3GpuRenderPass) {
+    fun draw(gpa: SegmentAllocator,pass: Sdl3GpuRenderPass) {
         checkOpen()
         check(!geometryDirty && (!uploadPending || uploadRecorded) && texts.none { it.dirty }) {
             "Prepare and upload text before drawing"
         }
         if (indexCount == 0) return
         pass.bindPipeline(pipeline)
-        mesh.bind(pass)
+        mesh.bind(gpa,pass)
         val uniforms = gpa.allocate(32, 16)
         uniforms.set(ValueLayout.JAVA_FLOAT, 0L, pass.width.toFloat())
         uniforms.set(ValueLayout.JAVA_FLOAT, 4L, pass.height.toFloat())
@@ -119,7 +116,7 @@ class TextRenderer private constructor(
             uniforms.set(ValueLayout.JAVA_FLOAT, 28L, text.alpha)
             pass.pushVertexUniform(slot = 0, data = uniforms)
             for (batch in text.textures.indices) {
-                pass.bindFragmentSampler(texture = text.textures[batch], sampler = sampler)
+                pass.bindFragmentSampler(gpa=gpa,texture = text.textures[batch], sampler = sampler)
                 pass.drawIndexed(
                     indexCount = text.batchIndexCounts[batch],
                     firstIndex = text.firstIndex + text.batchFirstIndices[batch],
@@ -145,21 +142,28 @@ class TextRenderer private constructor(
     }
 
     companion object {
-        context(gpa: SegmentAllocator)
-        fun create(device: Sdl3GpuDevice, targetFormat: Sdl3GpuTextureFormat, shader: Bytes): TextRenderer {
+        fun create(
+            gpa: SegmentAllocator,
+            device: Sdl3GpuDevice,
+            targetFormat: Sdl3GpuTextureFormat,
+            shader: Bytes
+        ): TextRenderer {
             val engine = device.createTextEngine()
             var pipeline: Sdl3GpuGraphicsPipeline? = null
             var sampler: Sdl3GpuSampler? = null
             try {
                 device.createShader(
+                    gpa = gpa,
                     code = shader, entrypoint = "vertexMain", stage = Sdl3GpuShaderStage.Vertex,
                     uniformBufferCount = 1,
                 ).use { vertex ->
                     device.createShader(
+                        gpa = gpa,
                         code = shader, entrypoint = "fragmentMain", stage = Sdl3GpuShaderStage.Fragment,
                         samplerCount = 1,
                     ).use { fragment ->
                         pipeline = device.createGraphicsPipeline(
+                            gpa = gpa,
                             vertexShader = vertex,
                             fragmentShader = fragment,
                             targetFormat = targetFormat,
@@ -172,7 +176,7 @@ class TextRenderer private constructor(
                         )
                     }
                 }
-                sampler = device.createSampler()
+                sampler = device.createSampler(gpa)
                 return TextRenderer(
                     device = device,
                     engine = engine,

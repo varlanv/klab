@@ -78,7 +78,7 @@ interface InternalKonventionExtension {
                         return entry
                     }
                 }
-                error("Only 'fast' and 'release' optimize modes are available")
+                error("Only 'fast' and 'debug' optimize modes are available")
             }
         }
     }

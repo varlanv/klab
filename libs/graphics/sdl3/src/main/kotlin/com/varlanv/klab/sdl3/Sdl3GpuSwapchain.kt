@@ -18,8 +18,7 @@ class Sdl3GpuSwapchain internal constructor(
             return Sdl3GpuTextureFormat(format)
         }
 
-    context(gpa: SegmentAllocator)
-    fun acquireFrame(command: Sdl3GpuCommandBuffer): Sdl3GpuFrame? {
+    fun acquireFrame(gpa: SegmentAllocator,command: Sdl3GpuCommandBuffer): Sdl3GpuFrame? {
         checkOpen()
         command.checkCanAcquire()
         check(command.device.address() == device.address())

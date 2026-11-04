@@ -21,10 +21,9 @@ internal class ModelRenderer private constructor(
 
     val hasGeometry: Boolean get() = queued.isNotEmpty()
 
-    context(gpa: SegmentAllocator)
-    fun upload(source: KotlinGltf): GpuModel {
+    fun upload(gpa: SegmentAllocator, source: KotlinGltf): GpuModel {
         checkOpen()
-        val model = GpuModel.upload(device = device, source = source)
+        val model = GpuModel.upload(gpa = gpa, device = device, source = source)
         try {
             models.add(model)
             return model
@@ -52,8 +51,7 @@ internal class ModelRenderer private constructor(
         queued.add(model)
     }
 
-    context(gpa: SegmentAllocator)
-    fun render(pass: Sdl3GpuRenderPass) {
+    fun render(gpa: SegmentAllocator,pass: Sdl3GpuRenderPass) {
         checkOpen()
         if (!hasGeometry) return
         val vertexUniforms = gpa.allocate(160, 16)
@@ -73,9 +71,9 @@ internal class ModelRenderer private constructor(
                     fragmentUniforms.set(ValueLayout.JAVA_FLOAT, 16L, material.alphaCutoff)
                     fragmentUniforms.set(ValueLayout.JAVA_FLOAT, 20L, if (material.unlit) 1f else 0f)
                     pass.pushFragmentUniform(slot = 0, data = fragmentUniforms)
-                    pass.bindVertexBuffer(primitive.vertices)
-                    pass.bindIndexBuffer(primitive.indices)
-                    pass.bindFragmentSampler(texture = material.texture.texture, sampler = material.sampler)
+                    pass.bindVertexBuffer(gpa,primitive.vertices)
+                    pass.bindIndexBuffer(gpa,primitive.indices)
+                    pass.bindFragmentSampler(gpa,texture = material.texture.texture, sampler = material.sampler)
                     pass.drawIndexed(indexCount = primitive.indexCount)
                 }
             }
@@ -103,8 +101,8 @@ internal class ModelRenderer private constructor(
     }
 
     companion object {
-        context(gpa: SegmentAllocator)
         fun create(
+            gpa: SegmentAllocator,
             device: Sdl3GpuDevice,
             targetFormat: Sdl3GpuTextureFormat,
             depthFormat: Sdl3GpuTextureFormat,
@@ -112,14 +110,17 @@ internal class ModelRenderer private constructor(
             camera: Camera3D,
         ): ModelRenderer {
             device.createShader(
+                gpa=gpa,
                 code = shader, entrypoint = "vertexMain", stage = Sdl3GpuShaderStage.Vertex,
                 uniformBufferCount = 1,
             ).use { vertex ->
                 device.createShader(
+                    gpa=gpa,
                     code = shader, entrypoint = "fragmentMain", stage = Sdl3GpuShaderStage.Fragment,
                     samplerCount = 1, uniformBufferCount = 1,
                 ).use { fragment ->
                     val pipeline = device.createGraphicsPipeline(
+                        gpa=gpa,
                         vertexShader = vertex, fragmentShader = fragment, targetFormat = targetFormat,
                         vertexPitch = 32,
                         attributes = listOf(

@@ -9,19 +9,19 @@ package com.varlanv.klab.collections
 import com.varlanv.klab.*
 
 val stableEmptyBytes: Bytes = Bytes(0)
-val stableMutBytes: MutBytes = stableEmptyBytes
+val stableEmptyMutBytes: MutBytes = stableEmptyBytes
 val stableEmptyChars: Chars = Chars(0)
-val stableMutChars: MutChars = stableEmptyChars
+val stableEmptyMutChars: MutChars = stableEmptyChars
 val stableEmptyInts: Ints = Ints(0)
 val stableEmptyMutInts: MutInts = stableEmptyInts
 val stableEmptyLongs: Longs = Longs(0)
-val stableMutLongs: MutLongs = stableEmptyLongs
+val stableEmptyMutLongs: MutLongs = stableEmptyLongs
 val stableEmptyShorts: Shorts = Shorts(0)
-val stableMutShorts: MutShorts = stableEmptyShorts
+val stableEmptyMutShorts: MutShorts = stableEmptyShorts
 val stableEmptyFloats: Floats = Floats(0)
-val stableMutFloats: MutFloats = stableEmptyFloats
+val stableEmptyMutFloats: MutFloats = stableEmptyFloats
 val stableEmptyDoubles: Doubles = Doubles(0)
-val stableMutDoubles: MutDoubles = stableEmptyDoubles
+val stableEmptyMutDoubles: MutDoubles = stableEmptyDoubles
 
 /**
  * Immutable by contract [ByteArray] alias.

@@ -11,8 +11,7 @@ class Sdl3GpuText internal constructor(
     private var handle: MemorySegment,
 ) : AutoCloseable {
 
-    context(gpa: SegmentAllocator)
-    fun setText(text: String) {
+    fun setText(gpa: SegmentAllocator, text: String) {
         checkOpen()
         check(SDL3Ttf.TTF_SetTextString(handle, gpa.allocateFrom(text), 0L)) {
             errorMessage("Failed to update text")

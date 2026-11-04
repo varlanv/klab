@@ -2,9 +2,9 @@ package com.varlanv.klab
 
 import com.varlanv.klab.glb.kotlin.KotlinGltfLoader
 import com.varlanv.klab.log.Log
-import com.varlanv.klab.renderer.GpuModel
-import com.varlanv.klab.renderer.FpsOverlay
 import com.varlanv.klab.renderer.FlyCameraController
+import com.varlanv.klab.renderer.FpsOverlay
+import com.varlanv.klab.renderer.GpuModel
 import com.varlanv.klab.renderer.Renderer
 import java.lang.foreign.Arena
 
@@ -35,12 +35,10 @@ class App private constructor(private val init: Init) {
     }
 
     private fun loadDuck(renderer: Renderer): GpuModel {
-        return Arena.ofConfined().use { loading ->
-            context(loading) {
-                val data = checkNotNull(App::class.java.getResourceAsStream("/assets/models/duck/Duck.glb"))
-                    .use { it.readAllBytes() }
-                renderer.uploadModel(KotlinGltfLoader().load(data))
-            }
+        return Arena.ofConfined().use { loadingArena ->
+            val data = checkNotNull(App::class.java.getResourceAsStream("/assets/models/duck/Duck.glb"))
+                .use { it.readAllBytes() }
+            renderer.uploadModel(loadingArena, KotlinGltfLoader().load(data))
         }
     }
 
@@ -75,13 +73,13 @@ class App private constructor(private val init: Init) {
                 red = 0.9f, green = 0.3f, blue = 0.2f, alpha = 0.8f,
                 fill = true,
             )
-            val presented = Arena.ofConfined().use { scratch ->
-                context(scratch) {
+            val presented = Arena.ofConfined().use { scratchArena ->
+                context(scratchArena) {
                     renderer.input.update()
                     if (renderer.mouseCaptured) {
                         camera.update(input = renderer.input, deltaSeconds = deltaSeconds)
                     }
-                    renderer.renderFrame()
+                    renderer.renderFrame(scratchArena)
                 }
             }
             if (presented) fps.framePresented()

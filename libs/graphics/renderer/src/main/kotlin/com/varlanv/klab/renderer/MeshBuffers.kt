@@ -13,10 +13,9 @@ internal class MeshBuffers(private val device: Sdl3GpuDevice) : AutoCloseable {
     val indexOffset: Int
         get() = checkNotNull(vertices).size
 
-    context(gpa: SegmentAllocator)
-    fun map(vertexBytes: Int, indexBytes: Int): MemorySegment {
+    fun map(gpa: SegmentAllocator, vertexBytes: Int, indexBytes: Int): MemorySegment {
         require(vertexBytes > 0 && indexBytes > 0)
-        ensureCapacity(vertexBytes = vertexBytes, indexBytes = indexBytes)
+        ensureCapacity(gpa = gpa, vertexBytes = vertexBytes, indexBytes = indexBytes)
         return checkNotNull(transfer).map()
     }
 
@@ -24,36 +23,39 @@ internal class MeshBuffers(private val device: Sdl3GpuDevice) : AutoCloseable {
         checkNotNull(transfer).unmap()
     }
 
-    context(gpa: SegmentAllocator)
-    fun upload(command: Sdl3GpuCommandBuffer, vertexBytes: Int, indexBytes: Int) {
+    fun upload(gpa: SegmentAllocator, command: Sdl3GpuCommandBuffer, vertexBytes: Int, indexBytes: Int) {
         command.beginCopyPass().use { copy ->
-            copy.upload(source = checkNotNull(transfer), destination = checkNotNull(vertices), size = vertexBytes)
             copy.upload(
+                gpa = gpa,
+                source = checkNotNull(transfer),
+                destination = checkNotNull(vertices),
+                size = vertexBytes
+            )
+            copy.upload(
+                gpa = gpa,
                 source = checkNotNull(transfer), destination = checkNotNull(indices),
                 size = indexBytes, sourceOffset = indexOffset,
             )
         }
     }
 
-    context(gpa: SegmentAllocator)
-    fun bind(pass: Sdl3GpuRenderPass) {
-        pass.bindVertexBuffer(checkNotNull(vertices))
-        pass.bindIndexBuffer(checkNotNull(indices))
+    fun bind(gpa: SegmentAllocator,pass: Sdl3GpuRenderPass) {
+        pass.bindVertexBuffer(gpa,checkNotNull(vertices))
+        pass.bindIndexBuffer(gpa,checkNotNull(indices))
     }
 
-    context(gpa: SegmentAllocator)
-    private fun ensureCapacity(vertexBytes: Int, indexBytes: Int) {
+    private fun ensureCapacity(gpa: SegmentAllocator, vertexBytes: Int, indexBytes: Int) {
         val oldVertexSize = vertices?.size ?: 0
         val oldIndexSize = indices?.size ?: 0
         if (vertexBytes <= oldVertexSize && indexBytes <= oldIndexSize) return
         val vertexSize = if (vertexBytes > oldVertexSize) growCapacity(oldVertexSize, vertexBytes) else oldVertexSize
         val indexSize = if (indexBytes > oldIndexSize) growCapacity(oldIndexSize, indexBytes) else oldIndexSize
-        val newVertices = device.createBuffer(usage = Sdl3GpuBufferUsage.Vertex, size = vertexSize)
+        val newVertices = device.createBuffer(gpa = gpa, usage = Sdl3GpuBufferUsage.Vertex, size = vertexSize)
         var newIndices: Sdl3GpuBuffer? = null
         var newTransfer: Sdl3GpuTransferBuffer? = null
         try {
-            newIndices = device.createBuffer(usage = Sdl3GpuBufferUsage.Index, size = indexSize)
-            newTransfer = device.createTransferBuffer(Math.addExact(vertexSize, indexSize))
+            newIndices = device.createBuffer(gpa = gpa, usage = Sdl3GpuBufferUsage.Index, size = indexSize)
+            newTransfer = device.createTransferBuffer(gpa = gpa, Math.addExact(vertexSize, indexSize))
         } catch (failure: Throwable) {
             newTransfer?.close()
             newIndices?.close()

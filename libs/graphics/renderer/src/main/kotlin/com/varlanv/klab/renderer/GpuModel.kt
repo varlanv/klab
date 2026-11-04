@@ -35,8 +35,7 @@ class GpuModel private constructor(
     }
 
     companion object {
-        context(gpa: SegmentAllocator)
-        internal fun upload(device: Sdl3GpuDevice, source: KotlinGltf): GpuModel {
+        internal fun upload(gpa: SegmentAllocator, device: Sdl3GpuDevice, source: KotlinGltf): GpuModel {
             require(source.skins.isEmpty() && source.animations.isEmpty()) { "GPU models currently support static scenes" }
             val resources = ArrayList<AutoCloseable>()
             val transfers = ArrayList<AutoCloseable>()
@@ -55,7 +54,8 @@ class GpuModel private constructor(
                         require(nodes.isNotEmpty()) { "GLB scene contains no meshes" }
                         val meshes = MutableList<List<GpuModelPrimitive>>(source.meshes.size) { emptyList() }
                         for (node in nodes) {
-                            if (meshes[node.meshIndex].isEmpty()) meshes[node.meshIndex] = upload.mesh(node.meshIndex)
+                            if (meshes[node.meshIndex].isEmpty()) meshes[node.meshIndex] =
+                                upload.mesh(gpa, node.meshIndex)
                         }
                         GpuModel(device = device, meshes = meshes, nodes = nodes, resources = resources)
                     }
@@ -130,14 +130,12 @@ private class ModelUpload(
         return result
     }
 
-    context(gpa: SegmentAllocator)
-    fun mesh(index: Int): List<GpuModelPrimitive> {
+    fun mesh(gpa: SegmentAllocator, index: Int): List<GpuModelPrimitive> {
         val mesh = source.meshes[index]
-        return List(mesh.primitives.size) { primitive(mesh.primitives[it]) }
+        return List(mesh.primitives.size) { primitive(gpa = gpa, primitive = mesh.primitives[it]) }
     }
 
-    context(gpa: SegmentAllocator)
-    private fun primitive(primitive: KPrimitive): GpuModelPrimitive {
+    private fun primitive(gpa: SegmentAllocator, primitive: KPrimitive): GpuModelPrimitive {
         require(primitive.mode == GLTF_PRIMITIVE_TRIANGLES) { "GPU models currently require triangle lists" }
         require(primitive.targets.isEmpty()) { "Morph targets are not supported yet" }
         require(primitive.accessorIndex(ATTRIBUTE_COLOR) == null) { "Vertex colors are not supported yet" }
@@ -153,7 +151,7 @@ private class ModelUpload(
         val normals = normal?.let { floats(accessor = it, components = 3, count = count) }
         val uv = primitive.accessorIndex(ATTRIBUTE_TEXCOORD)
         val uvs = uv?.let { floats(accessor = it, components = 2, count = count) }
-        val material = material(primitive.material.takeIf { it >= 0 })
+        val material = material(gpa, primitive.material.takeIf { it >= 0 })
         if (material.texture.width > 1 || material.texture.height > 1) {
             require(uv != null) { "Textured meshes require TEXCOORD_0" }
         }
@@ -163,9 +161,11 @@ private class ModelUpload(
         val vertexBytes = Math.multiplyExact(count, 32)
         val indexBytes = Math.multiplyExact(indexCount, 4)
         val vertexBuffer =
-            device.createBuffer(usage = Sdl3GpuBufferUsage.Vertex, size = vertexBytes).also(resources::add)
-        val indexBuffer = device.createBuffer(usage = Sdl3GpuBufferUsage.Index, size = indexBytes).also(resources::add)
-        val transfer = device.createTransferBuffer(Math.addExact(vertexBytes, indexBytes)).also(transfers::add)
+            device.createBuffer(gpa = gpa, usage = Sdl3GpuBufferUsage.Vertex, size = vertexBytes).also(resources::add)
+        val indexBuffer =
+            device.createBuffer(gpa = gpa, usage = Sdl3GpuBufferUsage.Index, size = indexBytes).also(resources::add)
+        val transfer =
+            device.createTransferBuffer(gpa = gpa, Math.addExact(vertexBytes, indexBytes)).also(transfers::add)
         val mapped = transfer.map(cycle = false)
         try {
             for (vertex in 0 until count) {
@@ -198,8 +198,9 @@ private class ModelUpload(
         } finally {
             transfer.unmap()
         }
-        copy.upload(source = transfer, destination = vertexBuffer, size = vertexBytes, cycle = false)
+        copy.upload(gpa = gpa, source = transfer, destination = vertexBuffer, size = vertexBytes, cycle = false)
         copy.upload(
+            gpa = gpa,
             source = transfer,
             destination = indexBuffer,
             size = indexBytes,
@@ -232,8 +233,7 @@ private class ModelUpload(
         )
     }
 
-    context(gpa: SegmentAllocator)
-    private fun material(index: Int?): GpuModelMaterial = materials.getOrPut(index ?: -1) {
+    private fun material(gpa: SegmentAllocator, index: Int?): GpuModelMaterial = materials.getOrPut(index ?: -1) {
         val material = index?.let { source.materials[it] }
         require(material?.alphaMode != ALPHA_BLEND) { "Transparent model materials are not supported yet" }
         val binding = material?.metallicRoughness?.baseColorTexture
@@ -243,7 +243,7 @@ private class ModelUpload(
         val texture = textureIndex?.let { source.textures[it] }
         val imageIndex = texture?.image?.takeIf { it >= 0 }
         require(textureIndex == null || imageIndex != null) { "Texture has no supported image source" }
-        val image = images.getOrPut(imageIndex ?: -1) { image(imageIndex) }
+        val image = images.getOrPut(imageIndex ?: -1) { image(gpa = gpa, imageIndex) }
         val sourceSampler = texture?.sampler?.takeIf { it >= 0 }?.let { source.samplers[it] }
         val settings = ModelSampler(
             minFilter = filter(sourceSampler?.minFilter ?: 9729),
@@ -253,6 +253,7 @@ private class ModelUpload(
         )
         val sampler = samplers.getOrPut(settings) {
             device.createSampler(
+                gpa = gpa,
                 minFilter = settings.minFilter, magFilter = settings.magFilter,
                 addressModeU = settings.addressModeU, addressModeV = settings.addressModeV,
             ).also(resources::add)
@@ -265,10 +266,9 @@ private class ModelUpload(
         )
     }
 
-    context(gpa: SegmentAllocator)
-    private fun image(index: Int?): Sdl3GpuSampledTexture {
+    private fun image(gpa: SegmentAllocator, index: Int?): Sdl3GpuSampledTexture {
         if (index == null) {
-            return uploadImage(width = 1, height = 1) { it.fill(0xff.toByte()) }
+            return uploadImage(gpa = gpa, width = 1, height = 1) { it.fill(0xff.toByte()) }
         }
         val image = source.images[index]
         require(image.mimeType == "image/png" || image.mimeType == "image/jpeg") { "Unsupported model image format: ${image.mimeType}" }
@@ -287,7 +287,7 @@ private class ModelUpload(
         }
         try {
             val row = MutInts(decoded.width)
-            return uploadImage(width = decoded.width, height = decoded.height) { target ->
+            return uploadImage(gpa = gpa, width = decoded.width, height = decoded.height) { target ->
                 for (y in 0 until decoded.height) {
                     decoded.getRGB(0, y, decoded.width, 1, row, 0, decoded.width)
                     for (x in row.indices) {
@@ -305,18 +305,23 @@ private class ModelUpload(
         }
     }
 
-    context(gpa: SegmentAllocator)
-    private inline fun uploadImage(width: Int, height: Int, write: (MemorySegment) -> Unit): Sdl3GpuSampledTexture {
+    private inline fun uploadImage(
+        gpa: SegmentAllocator,
+        width: Int,
+        height: Int,
+        write: (MemorySegment) -> Unit
+    ): Sdl3GpuSampledTexture {
         val size = Math.multiplyExact(Math.multiplyExact(width, height), 4)
-        val texture = device.createSampledTexture(width = width, height = height, srgb = true).also(resources::add)
-        val transfer = device.createTransferBuffer(size).also(transfers::add)
+        val texture =
+            device.createSampledTexture(gpa = gpa, width = width, height = height, srgb = true).also(resources::add)
+        val transfer = device.createTransferBuffer(gpa = gpa, size).also(transfers::add)
         val mapped = transfer.map(cycle = false)
         try {
             write(mapped)
         } finally {
             transfer.unmap()
         }
-        copy.upload(source = transfer, destination = texture)
+        copy.upload(gpa = gpa, source = transfer, destination = texture)
         return texture
     }
 }

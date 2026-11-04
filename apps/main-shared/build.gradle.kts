@@ -1,3 +1,5 @@
+@file:Suppress("UnstableApiUsage")
+
 plugins {
     alias(libs.plugins.internalConvention)
 }
@@ -11,7 +13,7 @@ dependencies {
 }
 
 tasks.processResources {
-    from(rootProject.layout.projectDirectory.dir("assets")) {
+    from(rootProject.isolated.projectDirectory.dir("assets")) {
         into("assets")
         exclude("tmp/**")
     }

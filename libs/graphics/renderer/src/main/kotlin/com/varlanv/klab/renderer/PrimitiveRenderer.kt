@@ -1,9 +1,6 @@
 package com.varlanv.klab.renderer
 
-import com.varlanv.klab.collections.Bytes
-import com.varlanv.klab.collections.Ints
-import com.varlanv.klab.collections.MutFloats
-import com.varlanv.klab.collections.MutInts
+import com.varlanv.klab.collections.*
 import com.varlanv.klab.sdl3.*
 import java.lang.foreign.MemorySegment
 import java.lang.foreign.SegmentAllocator
@@ -40,11 +37,11 @@ internal class PrimitiveRenderer private constructor(
 ) : AutoCloseable {
 
     private val mesh = MeshBuffers(device)
-    private var vertices = MutFloats(0)
-    private var indices = MutInts(0)
-    private var kinds = MutInts(0)
-    private var firstIndices = MutInts(0)
-    private var indexCounts = MutInts(0)
+    private var vertices: MutFloats = stableEmptyMutFloats
+    private var indices: MutInts = stableEmptyMutInts
+    private var kinds: MutInts = stableEmptyMutInts
+    private var firstIndices: MutInts = stableEmptyMutInts
+    private var indexCounts: MutInts = stableEmptyMutInts
     private var vertexCount = 0
     private var indexCount = 0
     private var commandCount = 0
@@ -249,43 +246,39 @@ internal class PrimitiveRenderer private constructor(
         }
     }
 
-    context(gpa: SegmentAllocator)
-    fun upload(command: Sdl3GpuCommandBuffer) {
+    fun upload(gpa: SegmentAllocator, command: Sdl3GpuCommandBuffer) {
         checkOpen()
         check(!uploaded) { "Primitive geometry has already been uploaded" }
         if (indexCount == 0) return
         val vertexBytes = Math.multiplyExact(vertexCount, VERTEX_BYTES)
         val indexBytes = Math.multiplyExact(indexCount, 4)
-        val data = mesh.map(vertexBytes = vertexBytes, indexBytes = indexBytes)
+        val data = mesh.map(gpa = gpa, vertexBytes = vertexBytes, indexBytes = indexBytes)
         try {
             MemorySegment.copy(MemorySegment.ofArray(vertices), 0L, data, 0L, vertexBytes.toLong())
             MemorySegment.copy(MemorySegment.ofArray(indices), 0L, data, mesh.indexOffset.toLong(), indexBytes.toLong())
         } finally {
             mesh.unmap()
         }
-        mesh.upload(command = command, vertexBytes = vertexBytes, indexBytes = indexBytes)
+        mesh.upload(gpa = gpa, command = command, vertexBytes = vertexBytes, indexBytes = indexBytes)
         uploaded = true
     }
 
-    context(gpa: SegmentAllocator)
-    fun drawWorld(pass: Sdl3GpuRenderPass) {
+    fun drawWorld(gpa: SegmentAllocator, pass: Sdl3GpuRenderPass) {
         checkOpen()
-        if (hasWorldGeometry) drawLayer(pass = pass, world = true)
+        if (hasWorldGeometry) drawLayer(gpa = gpa, pass = pass, world = true)
     }
 
-    context(gpa: SegmentAllocator)
-    fun drawRectangles(pass: Sdl3GpuRenderPass) {
+    fun drawRectangles(gpa: SegmentAllocator,pass: Sdl3GpuRenderPass) {
         checkOpen()
-        if (hasRectangles) drawLayer(pass = pass, world = false)
+        if (hasRectangles) drawLayer(gpa = gpa, pass = pass, world = false)
     }
 
-    context(gpa: SegmentAllocator)
-    private fun drawLayer(pass: Sdl3GpuRenderPass, world: Boolean) {
+    private fun drawLayer(gpa: SegmentAllocator, pass: Sdl3GpuRenderPass, world: Boolean) {
         check(uploaded) { "Upload primitive geometry before drawing" }
         val uniforms = gpa.allocate(80, 16).fill(0)
         camera.writeUniforms(destination = uniforms, width = pass.width, height = pass.height)
         pass.pushVertexUniform(slot = 0, data = uniforms)
-        mesh.bind(pass)
+        mesh.bind(gpa, pass)
         var previousKind = -1
         for (index in 0 until commandCount) {
             val kind = kinds[index]
@@ -351,9 +344,11 @@ internal class PrimitiveRenderer private constructor(
             var rectangleWire: Sdl3GpuGraphicsPipeline? = null
             try {
                 device.createShader(
+                    gpa = gpa,
                     code = shader, entrypoint = "fragmentMain", stage = Sdl3GpuShaderStage.Fragment,
                 ).use { fragment ->
                     device.createShader(
+                        gpa = gpa,
                         code = shader, entrypoint = "vertex3D", stage = Sdl3GpuShaderStage.Vertex,
                         uniformBufferCount = 1,
                     ).use { vertex ->
@@ -367,6 +362,7 @@ internal class PrimitiveRenderer private constructor(
                         )
                     }
                     device.createShader(
+                        gpa = gpa,
                         code = shader, entrypoint = "vertex2D", stage = Sdl3GpuShaderStage.Vertex,
                         uniformBufferCount = 1,
                     ).use { vertex ->
@@ -407,6 +403,7 @@ internal class PrimitiveRenderer private constructor(
             primitiveType: Sdl3GpuPrimitiveType,
         ): Sdl3GpuGraphicsPipeline {
             return device.createGraphicsPipeline(
+                gpa = gpa,
                 vertexShader = vertex,
                 fragmentShader = fragment,
                 targetFormat = targetFormat,
