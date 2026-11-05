@@ -1,8 +1,8 @@
 package com.varlanv.klab.sdl3
 
+import com.varlanv.klab.mem.NativeAllocator
 import com.varlanv.klab.sdl3.ffi.generated.SDL3
 import java.lang.foreign.MemorySegment
-import java.lang.foreign.SegmentAllocator
 import java.lang.foreign.ValueLayout
 
 class Sdl3GpuSwapchain internal constructor(
@@ -18,7 +18,7 @@ class Sdl3GpuSwapchain internal constructor(
             return Sdl3GpuTextureFormat(format)
         }
 
-    fun acquireFrame(gpa: SegmentAllocator,command: Sdl3GpuCommandBuffer): Sdl3GpuFrame? {
+    fun acquireFrame(gpa: NativeAllocator,command: Sdl3GpuCommandBuffer): Sdl3GpuFrame? {
         checkOpen()
         command.checkCanAcquire()
         check(command.device.address() == device.address())

@@ -28,7 +28,8 @@ interface InternalKonventionExtension {
         val dependencies = project.dependencies
         dependencies.add("implementation", dependencies.project(":libs:graphics:renderer"))
         dependencies.add("implementation", dependencies.project(":libs:graphics:sdl3"))
-        dependencies.add("implementation", dependencies.project(":libs:lang"))
+        dependencies.add("implementation", dependencies.project(":libs:lang:common"))
+        dependencies.add("implementation", dependencies.project(":libs:lang:mem"))
     }
 
     fun configureBenchmark(project: Project) {
@@ -52,7 +53,7 @@ interface InternalKonventionExtension {
         extensions.configure(JmhParameters::class.java) { jmh ->
             jmh.includeTests.set(false)
             jmh.jmhVersion.set(internalProperties.getVersion("jmhVersion"))
-            jmh.warmupIterations.set(2)
+            jmh.warmupIterations.set(5)
             jmh.warmup.set("1s")
             jmh.iterations.set(3)
             jmh.timeOnIteration.set("2s")
@@ -180,6 +181,13 @@ interface InternalKonventionExtension {
         val tasks = project.tasks
         tasks.withType(KotlinCompile::class.java) {
             it.enabled = isEnabled
+            it.compilerOptions {
+                if (optimize == Optimize.Fast) {
+                    freeCompilerArgs.add("-Xassertions=always-disable")
+                    freeCompilerArgs.add("-Xno-param-assertions")
+                    freeCompilerArgs.add("-Xno-receiver-assertions")
+                }
+            }
         }
 
         tasks.withType(Jar::class.java) {

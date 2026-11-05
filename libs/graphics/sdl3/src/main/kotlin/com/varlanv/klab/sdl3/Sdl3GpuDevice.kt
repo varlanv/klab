@@ -1,10 +1,10 @@
 package com.varlanv.klab.sdl3
 
+import com.varlanv.klab.mem.NativeAllocator
 import com.varlanv.klab.collections.Bytes
 import com.varlanv.klab.sdl3.ffi.generated.*
 import com.varlanv.klab.sdl3.ffi.generated.ttf.SDL3Ttf
 import java.lang.foreign.MemorySegment
-import java.lang.foreign.SegmentAllocator
 
 class Sdl3GpuDevice internal constructor(internal var handle: MemorySegment) : AutoCloseable {
 
@@ -63,7 +63,7 @@ class Sdl3GpuDevice internal constructor(internal var handle: MemorySegment) : A
         return Sdl3GpuTextEngine(device = handle, handle = engine)
     }
 
-    fun createBuffer(gpa: SegmentAllocator, usage: Sdl3GpuBufferUsage, size: Int): Sdl3GpuBuffer {
+    fun createBuffer(gpa: NativeAllocator, usage: Sdl3GpuBufferUsage, size: Int): Sdl3GpuBuffer {
         checkOpen()
         require(size > 0)
         val info = SDL_GPUBufferCreateInfo.allocate(gpa).fill(0)
@@ -80,7 +80,7 @@ class Sdl3GpuDevice internal constructor(internal var handle: MemorySegment) : A
         return Sdl3GpuBuffer(device = handle, handle = buffer, size = size, usage = usage)
     }
 
-    fun createTransferBuffer(gpa: SegmentAllocator, size: Int): Sdl3GpuTransferBuffer {
+    fun createTransferBuffer(gpa: NativeAllocator, size: Int): Sdl3GpuTransferBuffer {
         checkOpen()
         require(size > 0)
         val info = SDL_GPUTransferBufferCreateInfo.allocate(gpa).fill(0)
@@ -91,7 +91,7 @@ class Sdl3GpuDevice internal constructor(internal var handle: MemorySegment) : A
         return Sdl3GpuTransferBuffer(device = handle, handle = buffer, size = size)
     }
 
-    fun createDepthTexture(gpa: SegmentAllocator, width: Int, height: Int): Sdl3GpuDepthTexture {
+    fun createDepthTexture(gpa: NativeAllocator, width: Int, height: Int): Sdl3GpuDepthTexture {
         checkOpen()
         require(width > 0 && height > 0)
         val format = depthTextureFormat
@@ -110,7 +110,7 @@ class Sdl3GpuDevice internal constructor(internal var handle: MemorySegment) : A
     }
 
     fun createSampledTexture(
-        gpa: SegmentAllocator,
+        gpa: NativeAllocator,
         width: Int,
         height: Int,
         srgb: Boolean = true
@@ -135,7 +135,7 @@ class Sdl3GpuDevice internal constructor(internal var handle: MemorySegment) : A
     }
 
     fun createSampler(
-        gpa: SegmentAllocator,
+        gpa: NativeAllocator,
         minFilter: Sdl3GpuFilter = Sdl3GpuFilter.Linear,
         magFilter: Sdl3GpuFilter = Sdl3GpuFilter.Linear,
         addressModeU: Sdl3GpuAddressMode = Sdl3GpuAddressMode.ClampToEdge,
@@ -154,7 +154,7 @@ class Sdl3GpuDevice internal constructor(internal var handle: MemorySegment) : A
     }
 
     fun createShader(
-        gpa: SegmentAllocator,
+        gpa: NativeAllocator,
         code: Bytes,
         entrypoint: String,
         stage: Sdl3GpuShaderStage,
@@ -187,7 +187,7 @@ class Sdl3GpuDevice internal constructor(internal var handle: MemorySegment) : A
     }
 
     fun createGraphicsPipeline(
-        gpa: SegmentAllocator,
+        gpa: NativeAllocator,
         vertexShader: Sdl3GpuShader,
         fragmentShader: Sdl3GpuShader,
         targetFormat: Sdl3GpuTextureFormat,

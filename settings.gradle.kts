@@ -38,9 +38,20 @@ include(
         "apps:main-dev",
         "apps:main-shared",
         // libs
-        "libs:lang",
+        "libs:lang:common",
+        "libs:lang:mem",
+        "libs:lang:bin",
+        "libs:lang:collections",
+        "libs:platform:platform-api",
+        "libs:platform:platform-logic",
+        "libs:presentation",
+        "libs:simulation",
+        // graphics
+        "libs:graphics:gpu-assets",
         "libs:graphics:renderer",
-        "libs:graphics:glb-loader",
+        "libs:graphics:renderer-api",
+        "libs:graphics:glb:glb-api",
+        "libs:graphics:glb:glb-loader",
         "libs:graphics:sdl3",
         "libs:graphics:sdl3-ffi-generated",
         // shaders

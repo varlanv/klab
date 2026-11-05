@@ -3,14 +3,19 @@ package com.varlanv.gradle.plugin
 import org.gradle.api.DefaultTask
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.artifacts.VersionCatalogsExtension
 import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.FileSystemOperations
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.plugins.JavaLibraryPlugin
+import org.gradle.api.plugins.JavaPlatformExtension
+import org.gradle.api.plugins.JavaPluginExtension
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.*
+import org.gradle.jvm.toolchain.JavaLanguageVersion
+import org.gradle.jvm.toolchain.JvmVendorSpec
 import org.gradle.language.jvm.tasks.ProcessResources
 import org.gradle.process.ExecOperations
 import org.gradle.workers.WorkAction
@@ -20,9 +25,19 @@ import javax.inject.Inject
 
 class SlangShaderPlugin : Plugin<Project> {
 
+
     override fun apply(project: Project) {
+        val extensions = project.extensions
+        val internalProperties = InternalProperties(extensions.getByName("versionCatalogs") as VersionCatalogsExtension)
+        val javaVersion = internalProperties.getVersion("javaVersion")
+        val jvmVendor = JvmVendorSpec.ADOPTIUM
+
         // java-library is needed so that consumers can receive plugin into classpath resources
         project.pluginManager.apply(JavaLibraryPlugin::class.java)
+        extensions.configure(JavaPluginExtension::class.java) {
+            it.toolchain.languageVersion.set(JavaLanguageVersion.of(javaVersion))
+            it.toolchain.vendor.set(jvmVendor)
+        }
         val platform = SlangPlatform.current()
         val projectDirectory = project.layout.projectDirectory
         val sources = project.objects.sourceDirectorySet("slang", "Slang shader sources")

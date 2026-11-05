@@ -106,6 +106,7 @@ class InternalKonventionPlugin : Plugin<Project> {
                     freeCompilerArgs.addAll(
                         "-Xjsr305=strict",
                         "-Xadd-modules=jdk.incubator.vector",
+                        "-Xreturn-value-checker=full"
                     )
                 }
                 kotlin.jvmToolchain { jvmToolchain ->

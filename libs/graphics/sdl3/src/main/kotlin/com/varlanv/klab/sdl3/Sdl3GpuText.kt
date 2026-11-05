@@ -1,9 +1,9 @@
 package com.varlanv.klab.sdl3
 
+import com.varlanv.klab.mem.NativeAllocator
 import com.varlanv.klab.sdl3.ffi.generated.ttf.SDL3Ttf
 import com.varlanv.klab.sdl3.ffi.generated.ttf.TTF_GPUAtlasDrawSequence
 import java.lang.foreign.MemorySegment
-import java.lang.foreign.SegmentAllocator
 
 class Sdl3GpuText internal constructor(
     private val engine: Sdl3GpuTextEngine,
@@ -11,7 +11,7 @@ class Sdl3GpuText internal constructor(
     private var handle: MemorySegment,
 ) : AutoCloseable {
 
-    fun setText(gpa: SegmentAllocator, text: String) {
+    fun setText(gpa: NativeAllocator, text: String) {
         checkOpen()
         check(SDL3Ttf.TTF_SetTextString(handle, gpa.allocateFrom(text), 0L)) {
             errorMessage("Failed to update text")

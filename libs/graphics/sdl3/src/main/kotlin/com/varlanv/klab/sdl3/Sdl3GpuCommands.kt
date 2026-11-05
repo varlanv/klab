@@ -1,8 +1,8 @@
 package com.varlanv.klab.sdl3
 
+import com.varlanv.klab.mem.NativeAllocator
 import com.varlanv.klab.sdl3.ffi.generated.*
 import java.lang.foreign.MemorySegment
-import java.lang.foreign.SegmentAllocator
 
 class Sdl3GpuCommandBuffer internal constructor(
     internal val device: MemorySegment,
@@ -85,7 +85,7 @@ class Sdl3GpuCopyPass internal constructor(
 ) : AutoCloseable {
 
     fun upload(
-        gpa: SegmentAllocator,
+        gpa: NativeAllocator,
         source: Sdl3GpuTransferBuffer,
         destination: Sdl3GpuSampledTexture,
         sourceOffset: Int = 0,
@@ -112,7 +112,7 @@ class Sdl3GpuCopyPass internal constructor(
     }
 
     fun upload(
-        gpa: SegmentAllocator,
+        gpa: NativeAllocator,
         source: Sdl3GpuTransferBuffer,
         destination: Sdl3GpuBuffer,
         size: Int,
@@ -161,7 +161,7 @@ class Sdl3GpuFrame internal constructor(
     private var initializedDepth: Sdl3GpuDepthTexture? = null
 
     fun beginRenderPass(
-        gpa: SegmentAllocator,
+        gpa: NativeAllocator,
         r: Float = 0f,
         g: Float = 0f,
         b: Float = 0f,
@@ -233,6 +233,7 @@ class Sdl3GpuRenderPass internal constructor(
     private var pipelineBound = false
     private var vertexBufferBound = false
     private var indexBytes = -1
+    private var indexElementSize = Int.SIZE_BYTES
 
     fun bindPipeline(pipeline: Sdl3GpuGraphicsPipeline) {
         command.checkPass(this)
@@ -243,7 +244,7 @@ class Sdl3GpuRenderPass internal constructor(
         pipelineBound = true
     }
 
-    fun bindVertexBuffer(gpa: SegmentAllocator,buffer: Sdl3GpuBuffer, offset: Int = 0) {
+    fun bindVertexBuffer(gpa: NativeAllocator,buffer: Sdl3GpuBuffer, offset: Int = 0) {
         command.checkPass(this)
         buffer.checkOpen()
         check(buffer.device.address() == command.device.address())
@@ -256,20 +257,30 @@ class Sdl3GpuRenderPass internal constructor(
         vertexBufferBound = true
     }
 
-    fun bindIndexBuffer(gpa: SegmentAllocator,buffer: Sdl3GpuBuffer, offset: Int = 0) {
+    fun bindIndexBuffer(
+        gpa: NativeAllocator,
+        buffer: Sdl3GpuBuffer,
+        offset: Int = 0,
+        format: Sdl3GpuIndexFormat = Sdl3GpuIndexFormat.Uint32,
+    ) {
         command.checkPass(this)
         buffer.checkOpen()
         check(buffer.device.address() == command.device.address())
         check(buffer.usage == Sdl3GpuBufferUsage.Index)
-        require(offset >= 0 && offset < buffer.size && offset % 4 == 0)
+        require(offset >= 0 && offset < buffer.size && offset % format.byteSize == 0)
         val binding = SDL_GPUBufferBinding.allocate(gpa).fill(0)
         SDL_GPUBufferBinding.buffer(binding, buffer.handle)
         SDL_GPUBufferBinding.offset(binding, offset)
-        SDL3.SDL_BindGPUIndexBuffer(handle, binding, SDL3.SDL_GPU_INDEXELEMENTSIZE_32BIT())
+        val elementSize = when (format) {
+            Sdl3GpuIndexFormat.Uint16 -> SDL3.SDL_GPU_INDEXELEMENTSIZE_16BIT()
+            Sdl3GpuIndexFormat.Uint32 -> SDL3.SDL_GPU_INDEXELEMENTSIZE_32BIT()
+        }
+        SDL3.SDL_BindGPUIndexBuffer(handle, binding, elementSize)
         indexBytes = buffer.size - offset
+        indexElementSize = format.byteSize
     }
 
-    fun bindFragmentSampler(gpa: SegmentAllocator,texture: Sdl3GpuTexture, sampler: Sdl3GpuSampler, slot: Int = 0) {
+    fun bindFragmentSampler(gpa: NativeAllocator,texture: Sdl3GpuTexture, sampler: Sdl3GpuSampler, slot: Int = 0) {
         command.checkPass(this)
         sampler.checkOpen()
         check(sampler.device.address() == command.device.address())
@@ -299,7 +310,7 @@ class Sdl3GpuRenderPass internal constructor(
         command.checkPass(this)
         check(pipelineBound && vertexBufferBound && indexBytes >= 0) { "Draw buffers and pipeline must be bound" }
         require(indexCount >= 0 && firstIndex >= 0)
-        require((firstIndex.toLong() + indexCount) * 4 <= indexBytes)
+        require((firstIndex.toLong() + indexCount) * indexElementSize <= indexBytes)
         SDL3.SDL_DrawGPUIndexedPrimitives(handle, indexCount, 1, firstIndex, vertexOffset, 0)
     }
 

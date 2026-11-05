@@ -1,8 +1,8 @@
 package com.varlanv.klab.sdl3
 
+import com.varlanv.klab.mem.NativeAllocator
 import com.varlanv.klab.sdl3.ffi.generated.SDL3
 import java.lang.foreign.MemorySegment
-import java.lang.foreign.SegmentAllocator
 import java.lang.foreign.ValueLayout
 
 enum class Sdl3Scancode(internal val value: Int) {
@@ -35,8 +35,7 @@ class Sdl3Input internal constructor(
         mouseDeltaY = 0f
     }
 
-    context(gpa: SegmentAllocator)
-    fun update() {
+    fun update(gpa: NativeAllocator) {
         owner.checkOpen()
         val delta = gpa.allocate(8, 4)
         SDL3.SDL_GetRelativeMouseState(delta, delta.asSlice(4L, 4L))

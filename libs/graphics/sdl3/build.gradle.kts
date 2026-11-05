@@ -3,6 +3,7 @@ plugins {
 }
 
 dependencies {
-    implementation(projects.libs.lang)
+    api(projects.libs.lang.mem)
+    implementation(projects.libs.lang.collections)
     implementation(projects.libs.graphics.sdl3FfiGenerated)
 }

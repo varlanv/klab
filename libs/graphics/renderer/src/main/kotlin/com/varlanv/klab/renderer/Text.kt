@@ -2,10 +2,10 @@ package com.varlanv.klab.renderer
 
 import com.varlanv.klab.collections.MutBytes
 import com.varlanv.klab.collections.MutInts
+import com.varlanv.klab.mem.NativeAllocator
 import com.varlanv.klab.sdl3.Sdl3GpuText
 import com.varlanv.klab.sdl3.Sdl3GpuTexture
 import java.lang.foreign.MemorySegment
-import java.lang.foreign.SegmentAllocator
 
 class Text internal constructor(
     private val owner: TextRenderer,
@@ -70,10 +70,10 @@ class Text internal constructor(
         this.alpha = alpha
     }
 
-    internal fun prepare(gpa: SegmentAllocator) {
+    internal fun prepare(gpa: NativeAllocator) {
         checkOpen()
         if (!dirty) return
-        native.setText(gpa,content)
+        native.setText(gpa, content)
         val first = native.drawData()
         var sequence = first
         var verticesNeeded = 0

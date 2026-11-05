@@ -9,7 +9,8 @@ description = "Shared application entrypoint logic"
 internalConvention.mainAppCommonDependencies(project)
 
 dependencies {
-    implementation(projects.libs.graphics.glbLoader)
+    implementation(projects.libs.graphics.glb.glbLoader)
+    implementation(projects.libs.platform.platformLogic)
 }
 
 tasks.processResources {

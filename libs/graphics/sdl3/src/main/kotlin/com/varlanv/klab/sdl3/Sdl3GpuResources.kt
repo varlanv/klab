@@ -11,6 +11,11 @@ value class Sdl3GpuTextureFormat(val value: Int)
 
 enum class Sdl3GpuBufferUsage { Vertex, Index }
 
+enum class Sdl3GpuIndexFormat(val byteSize: Int) {
+    Uint16(Short.SIZE_BYTES),
+    Uint32(Int.SIZE_BYTES),
+}
+
 enum class Sdl3GpuShaderStage { Vertex, Fragment }
 
 enum class Sdl3GpuVertexFormat { Float2, Float3, Float4 }

@@ -1,45 +1,25 @@
+@file:Suppress("NOTHING_TO_INLINE")
+
 package com.varlanv.klab.renderer
 
-import com.varlanv.klab.Io
 import com.varlanv.klab.collections.Bytes
-import com.varlanv.klab.glb.kotlin.KotlinGltf
+import com.varlanv.klab.mem.NativeAllocator
 import com.varlanv.klab.sdl3.*
-import java.lang.foreign.MemorySegment
-import java.lang.foreign.SegmentAllocator
-import kotlin.math.ceil
 
-private const val NANOS_IN_SECOND = 1_000_000_000.0
-
+/** Borrows the device, swapchain, and TTF runtime; owns its drawing resources and fonts. */
 class Renderer private constructor(
-    private val sdl: Sdl3,
     private val device: Sdl3GpuDevice,
-    private val window: Sdl3Window,
     private val swapchain: Sdl3GpuSwapchain,
     private val ttf: Sdl3Ttf,
     val text: TextRenderer,
     private val primitives: PrimitiveRenderer,
     private val models: ModelRenderer,
     val camera: Camera3D,
-    val input: Sdl3Input,
 ) : AutoCloseable {
 
     private val fonts = ArrayList<Sdl3Font>()
     private var closed = false
-    private var previousRefreshRate = 0.0
     private var depth: Sdl3GpuDepthTexture? = null
-
-    var mouseCaptured: Boolean
-        get() {
-            checkOpen()
-            return window.relativeMouseMode && window.hasInputFocus
-        }
-        set(value) {
-            checkOpen()
-            if (window.relativeMouseMode != value) {
-                window.setRelativeMouseMode(value)
-                input.discardMouseMotion()
-            }
-        }
 
     fun drawRectangle(
         x: Float,
@@ -97,42 +77,19 @@ class Renderer private constructor(
         )
     }
 
-    fun uploadModel(gpa: SegmentAllocator, source: KotlinGltf): GpuModel {
-        checkOpen()
-        return models.upload(gpa, source)
-    }
-
     fun drawModel(model: GpuModel, x: Float, y: Float, z: Float, scale: Float = 1f) {
         checkOpen()
         models.draw(model = model, x = x, y = y, z = z, scale = scale)
     }
 
-    context(gpa: SegmentAllocator)
-    fun openFont(data: Bytes, pointSize: Float): Sdl3Font {
+    fun openFont(gpa: NativeAllocator, data: Bytes, pointSize: Float): Sdl3Font {
         checkOpen()
-        val font = ttf.openFont(data = data, pointSize = pointSize)
+        val font = ttf.openFont(gpa = gpa, data = data, pointSize = pointSize)
         fonts.add(font)
         return font
     }
 
-    fun pollEvents(): Boolean {
-        checkOpen()
-        while (true) {
-            when (sdl.pollEvent() ?: return true) {
-                Sdl3Event.Quit, Sdl3Event.WindowCloseRequested -> return false
-                Sdl3Event.EscapePressed, Sdl3Event.WindowFocusLost -> mouseCaptured = false
-                Sdl3Event.LeftMousePressed -> if (window.hasInputFocus) mouseCaptured = true
-                Sdl3Event.WindowFocusGained, Sdl3Event.Other -> Unit
-            }
-        }
-    }
-
-    fun ticksNs(): Long {
-        checkOpen()
-        return sdl.ticksNs()
-    }
-
-    fun renderFrame(gpa: SegmentAllocator): Boolean {
+    fun renderFrame(gpa: NativeAllocator): Boolean {
         checkOpen()
         try {
             text.prepare(gpa)
@@ -171,18 +128,6 @@ class Renderer private constructor(
         }
     }
 
-    context(io: Io)
-    fun waitForNextFrame(frameStart: Long) {
-        checkOpen()
-        val refreshRate = window.currentDisplayRefreshRate().let { if (it > 0.0) it else 60.0 }
-        if (refreshRate != previousRefreshRate) {
-            io.debug { "Resolved refresh rate - [ $refreshRate ]" }
-            previousRefreshRate = refreshRate
-        }
-        val duration = ceil(NANOS_IN_SECOND / minOf(refreshRate, 120.0)).toLong()
-        sdl.delayPrecise(duration - (sdl.ticksNs() - frameStart))
-    }
-
     override fun close() {
         if (!closed) {
             closed = true
@@ -192,33 +137,26 @@ class Renderer private constructor(
             depth?.let { resources.add(it) }
             resources.add(text)
             resources.addAll(fonts.asReversed())
-            resources.addAll(listOf(ttf, swapchain, window, device, sdl))
             closeResources(resources)
         }
     }
 
-    private fun checkOpen() {
-        check(!closed) { "Renderer is closed" }
+    private inline fun checkOpen() {
+        assert(!closed) { "Renderer is closed" }
     }
 
     companion object {
-        context(gpa: SegmentAllocator)
-        fun create(title: MemorySegment): Renderer {
-            val sdl = Sdl3.init()
-            var device: Sdl3GpuDevice? = null
-            var window: Sdl3Window? = null
-            var swapchain: Sdl3GpuSwapchain? = null
-            var ttf: Sdl3Ttf? = null
+        fun create(
+            gpa: NativeAllocator,
+            device: Sdl3GpuDevice,
+            swapchain: Sdl3GpuSwapchain,
+            ttf: Sdl3Ttf,
+        ): Renderer {
             var text: TextRenderer? = null
             var primitives: PrimitiveRenderer? = null
             var models: ModelRenderer? = null
             try {
-                device = sdl.createGpuDevice()
-                val input = sdl.createInput()
                 val camera = Camera3D()
-                window = sdl.createWindow(title = title, width = 1280, height = 720)
-                swapchain = device.claimWindow(window)
-                ttf = Sdl3Ttf.init()
                 text = TextRenderer.create(
                     gpa = gpa,
                     device = device,
@@ -226,6 +164,7 @@ class Renderer private constructor(
                     shader = resource("/shaders/shaders-primitive/text.spv"),
                 )
                 primitives = PrimitiveRenderer.create(
+                    gpa = gpa,
                     device = device,
                     targetFormat = swapchain.textureFormat,
                     depthFormat = device.depthTextureFormat,
@@ -240,15 +179,13 @@ class Renderer private constructor(
                     shader = resource("/shaders/shaders-primitive/model.spv"),
                     camera = camera,
                 )
-                window.setRelativeMouseMode(true)
-                input.discardMouseMotion()
                 return Renderer(
-                    sdl = sdl, device = device, window = window, swapchain = swapchain,
-                    ttf = ttf, text = text, primitives = primitives, models = models, camera = camera, input = input,
+                    device = device, swapchain = swapchain,
+                    ttf = ttf, text = text, primitives = primitives, models = models, camera = camera,
                 )
             } catch (failure: Throwable) {
                 closeResources(
-                    resources = listOfNotNull(models, primitives, text, ttf, swapchain, window, device, sdl),
+                    resources = listOfNotNull(models, primitives, text),
                     cause = failure,
                 )
                 throw failure

@@ -3,8 +3,10 @@ plugins {
 }
 
 dependencies {
-    implementation(projects.libs.lang)
+    api(projects.libs.graphics.rendererApi)
+    api(projects.libs.lang.mem)
+    implementation(projects.libs.lang.collections)
+    implementation(projects.libs.lang.common)
     implementation(projects.libs.graphics.sdl3)
-    implementation(projects.libs.graphics.glbLoader)
     implementation(projects.shaders.shadersPrimitive)
 }

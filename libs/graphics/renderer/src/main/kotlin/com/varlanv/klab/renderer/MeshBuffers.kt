@@ -1,8 +1,8 @@
 package com.varlanv.klab.renderer
 
+import com.varlanv.klab.mem.NativeAllocator
 import com.varlanv.klab.sdl3.*
 import java.lang.foreign.MemorySegment
-import java.lang.foreign.SegmentAllocator
 
 internal class MeshBuffers(private val device: Sdl3GpuDevice) : AutoCloseable {
 
@@ -13,7 +13,7 @@ internal class MeshBuffers(private val device: Sdl3GpuDevice) : AutoCloseable {
     val indexOffset: Int
         get() = checkNotNull(vertices).size
 
-    fun map(gpa: SegmentAllocator, vertexBytes: Int, indexBytes: Int): MemorySegment {
+    fun map(gpa: NativeAllocator, vertexBytes: Int, indexBytes: Int): MemorySegment {
         require(vertexBytes > 0 && indexBytes > 0)
         ensureCapacity(gpa = gpa, vertexBytes = vertexBytes, indexBytes = indexBytes)
         return checkNotNull(transfer).map()
@@ -23,7 +23,7 @@ internal class MeshBuffers(private val device: Sdl3GpuDevice) : AutoCloseable {
         checkNotNull(transfer).unmap()
     }
 
-    fun upload(gpa: SegmentAllocator, command: Sdl3GpuCommandBuffer, vertexBytes: Int, indexBytes: Int) {
+    fun upload(gpa: NativeAllocator, command: Sdl3GpuCommandBuffer, vertexBytes: Int, indexBytes: Int) {
         command.beginCopyPass().use { copy ->
             copy.upload(
                 gpa = gpa,
@@ -39,12 +39,12 @@ internal class MeshBuffers(private val device: Sdl3GpuDevice) : AutoCloseable {
         }
     }
 
-    fun bind(gpa: SegmentAllocator,pass: Sdl3GpuRenderPass) {
-        pass.bindVertexBuffer(gpa,checkNotNull(vertices))
-        pass.bindIndexBuffer(gpa,checkNotNull(indices))
+    fun bind(gpa: NativeAllocator, pass: Sdl3GpuRenderPass) {
+        pass.bindVertexBuffer(gpa, checkNotNull(vertices))
+        pass.bindIndexBuffer(gpa, checkNotNull(indices))
     }
 
-    private fun ensureCapacity(gpa: SegmentAllocator, vertexBytes: Int, indexBytes: Int) {
+    private fun ensureCapacity(gpa: NativeAllocator, vertexBytes: Int, indexBytes: Int) {
         val oldVertexSize = vertices?.size ?: 0
         val oldIndexSize = indices?.size ?: 0
         if (vertexBytes <= oldVertexSize && indexBytes <= oldIndexSize) return

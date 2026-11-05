@@ -1,9 +1,9 @@
 package com.varlanv.klab.renderer
 
 import com.varlanv.klab.collections.*
+import com.varlanv.klab.mem.NativeAllocator
 import com.varlanv.klab.sdl3.*
 import java.lang.foreign.MemorySegment
-import java.lang.foreign.SegmentAllocator
 
 private const val WORLD_FILL = 0
 private const val WORLD_WIRE = 1
@@ -246,7 +246,7 @@ internal class PrimitiveRenderer private constructor(
         }
     }
 
-    fun upload(gpa: SegmentAllocator, command: Sdl3GpuCommandBuffer) {
+    fun upload(gpa: NativeAllocator, command: Sdl3GpuCommandBuffer) {
         checkOpen()
         check(!uploaded) { "Primitive geometry has already been uploaded" }
         if (indexCount == 0) return
@@ -263,19 +263,19 @@ internal class PrimitiveRenderer private constructor(
         uploaded = true
     }
 
-    fun drawWorld(gpa: SegmentAllocator, pass: Sdl3GpuRenderPass) {
+    fun drawWorld(gpa: NativeAllocator, pass: Sdl3GpuRenderPass) {
         checkOpen()
         if (hasWorldGeometry) drawLayer(gpa = gpa, pass = pass, world = true)
     }
 
-    fun drawRectangles(gpa: SegmentAllocator,pass: Sdl3GpuRenderPass) {
+    fun drawRectangles(gpa: NativeAllocator, pass: Sdl3GpuRenderPass) {
         checkOpen()
         if (hasRectangles) drawLayer(gpa = gpa, pass = pass, world = false)
     }
 
-    private fun drawLayer(gpa: SegmentAllocator, pass: Sdl3GpuRenderPass, world: Boolean) {
+    private fun drawLayer(gpa: NativeAllocator, pass: Sdl3GpuRenderPass, world: Boolean) {
         check(uploaded) { "Upload primitive geometry before drawing" }
-        val uniforms = gpa.allocate(80, 16).fill(0)
+        val uniforms = gpa.alloc(80, 16).fill(0)
         camera.writeUniforms(destination = uniforms, width = pass.width, height = pass.height)
         pass.pushVertexUniform(slot = 0, data = uniforms)
         mesh.bind(gpa, pass)
@@ -330,8 +330,8 @@ internal class PrimitiveRenderer private constructor(
     }
 
     companion object {
-        context(gpa: SegmentAllocator)
         fun create(
+            gpa: NativeAllocator,
             device: Sdl3GpuDevice,
             targetFormat: Sdl3GpuTextureFormat,
             depthFormat: Sdl3GpuTextureFormat,
@@ -353,26 +353,48 @@ internal class PrimitiveRenderer private constructor(
                         uniformBufferCount = 1,
                     ).use { vertex ->
                         worldFill = createPipeline(
-                            device = device, vertex = vertex, fragment = fragment, targetFormat = targetFormat,
-                            depthFormat = depthFormat, primitiveType = Sdl3GpuPrimitiveType.Triangles,
+                            gpa = gpa,
+                            device = device,
+                            vertex = vertex,
+                            fragment = fragment,
+                            targetFormat = targetFormat,
+                            depthFormat = depthFormat,
+                            primitiveType = Sdl3GpuPrimitiveType.Triangles,
                         )
                         worldWire = createPipeline(
-                            device = device, vertex = vertex, fragment = fragment, targetFormat = targetFormat,
-                            depthFormat = depthFormat, primitiveType = Sdl3GpuPrimitiveType.Lines,
+                            gpa = gpa,
+                            device = device,
+                            vertex = vertex,
+                            fragment = fragment,
+                            targetFormat = targetFormat,
+                            depthFormat = depthFormat,
+                            primitiveType = Sdl3GpuPrimitiveType.Lines,
                         )
                     }
                     device.createShader(
                         gpa = gpa,
-                        code = shader, entrypoint = "vertex2D", stage = Sdl3GpuShaderStage.Vertex,
+                        code = shader,
+                        entrypoint = "vertex2D",
+                        stage = Sdl3GpuShaderStage.Vertex,
                         uniformBufferCount = 1,
                     ).use { vertex ->
                         rectangleFill = createPipeline(
-                            device = device, vertex = vertex, fragment = fragment, targetFormat = targetFormat,
-                            depthFormat = null, primitiveType = Sdl3GpuPrimitiveType.Triangles,
+                            gpa = gpa,
+                            device = device,
+                            vertex = vertex,
+                            fragment = fragment,
+                            targetFormat = targetFormat,
+                            depthFormat = null,
+                            primitiveType = Sdl3GpuPrimitiveType.Triangles,
                         )
                         rectangleWire = createPipeline(
-                            device = device, vertex = vertex, fragment = fragment, targetFormat = targetFormat,
-                            depthFormat = null, primitiveType = Sdl3GpuPrimitiveType.Lines,
+                            gpa = gpa,
+                            device = device,
+                            vertex = vertex,
+                            fragment = fragment,
+                            targetFormat = targetFormat,
+                            depthFormat = null,
+                            primitiveType = Sdl3GpuPrimitiveType.Lines,
                         )
                     }
                 }
@@ -393,8 +415,8 @@ internal class PrimitiveRenderer private constructor(
             }
         }
 
-        context(gpa: SegmentAllocator)
         private fun createPipeline(
+            gpa: NativeAllocator,
             device: Sdl3GpuDevice,
             vertex: Sdl3GpuShader,
             fragment: Sdl3GpuShader,

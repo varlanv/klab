@@ -56,6 +56,19 @@
        or array copy is required. For external boundaries (Java/Kotlin SDK) that receives plain `ByteArray`, care should
        be taken to pass `Bytes` only to places where it is trusted that function don't mutate receiver array.
     3) `ByteArray` should never be declared in this codebase.
+5. **All** `if`, `else if`, `else`, `for`, `while` bodies should be wrapped with braces.
+
+### Tests
+
+1. All tests should extend [BaseSpec.kt](../testing/common-test/src/main/kotlin/com/varlanv/klab/testing/BaseSpec.kt),
+   directly or transitively.
+2. Tests should follow BDD structure (think Groovy Spock). Test can be written in 3 styles depending on complexity:
+    1) // given <comment>... // when <comment>... // then <comment> with optional // and <comment> blocks in between
+    2) // given <comment>... // expect <comment> with optional // and <comment> blocks in between
+    3) // expect <comment> with optional // and <comment> blocks
+
+   There should be exactly 1 empty newline between previous line of code and start of next tag (excluding first line
+   in test method). For additional conventions refer to `BaseSpec` documentation.
 
 ## Shaders
 

@@ -1,18 +1,17 @@
 package com.varlanv.klab.sdl3
 
 import com.varlanv.klab.collections.Bytes
+import com.varlanv.klab.mem.NativeAllocator
 import com.varlanv.klab.sdl3.ffi.generated.SDL3
 import com.varlanv.klab.sdl3.ffi.generated.ttf.SDL3Ttf
 import java.lang.foreign.MemorySegment
-import java.lang.foreign.SegmentAllocator
 
 class Sdl3Ttf private constructor() : AutoCloseable {
 
     private var initialized = true
     private var fontCount = 0
 
-    context(gpa: SegmentAllocator)
-    fun openFont(data: Bytes, pointSize: Float): Sdl3Font {
+    fun openFont(gpa: NativeAllocator,data: Bytes, pointSize: Float): Sdl3Font {
         check(initialized)
         require(data.isNotEmpty())
         require(pointSize.isFinite() && pointSize > 0f)

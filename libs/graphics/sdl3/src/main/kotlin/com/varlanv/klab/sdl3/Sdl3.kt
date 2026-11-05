@@ -1,11 +1,11 @@
 package com.varlanv.klab.sdl3
 
+import com.varlanv.klab.mem.NativeAllocator
 import com.varlanv.klab.sdl3.ffi.generated.SDL3
 import com.varlanv.klab.sdl3.ffi.generated.SDL_Event
 import com.varlanv.klab.sdl3.ffi.generated.SDL_KeyboardEvent
 import com.varlanv.klab.sdl3.ffi.generated.SDL_MouseButtonEvent
 import java.lang.foreign.MemorySegment
-import java.lang.foreign.SegmentAllocator
 import java.lang.foreign.ValueLayout
 
 class Sdl3 private constructor(private val event: MemorySegment) : AutoCloseable {
@@ -45,8 +45,7 @@ class Sdl3 private constructor(private val event: MemorySegment) : AutoCloseable
         return Sdl3GpuDevice(handle)
     }
 
-    context(gpa: SegmentAllocator)
-    fun createInput(): Sdl3Input {
+    fun createInput(gpa: NativeAllocator): Sdl3Input {
         checkOpen()
         val count = gpa.allocate(ValueLayout.JAVA_INT)
         val keyboard = SDL3.SDL_GetKeyboardState(count)
@@ -102,8 +101,7 @@ class Sdl3 private constructor(private val event: MemorySegment) : AutoCloseable
     }
 
     companion object {
-        context(gpa: SegmentAllocator)
-        fun init(): Sdl3 {
+        fun init(gpa: NativeAllocator): Sdl3 {
             SDL3.SDL_SetMainReady()
             try {
                 check(SDL3.SDL_Init(SDL3.SDL_INIT_VIDEO())) { errorMessage("Failed to initialize SDL3") }
