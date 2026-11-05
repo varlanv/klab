@@ -10,10 +10,15 @@ class Sdl3GpuText internal constructor(
     private val font: Sdl3Font,
     private var handle: MemorySegment,
 ) : AutoCloseable {
-
     fun setText(gpa: NativeAllocator, text: String) {
         checkOpen()
-        check(SDL3Ttf.TTF_SetTextString(handle, gpa.allocateFrom(text), 0L)) {
+        check(
+            SDL3Ttf.TTF_SetTextString(
+                handle,
+                gpa.allocateFrom(text),
+                0L,
+            ),
+        ) {
             errorMessage("Failed to update text")
         }
     }
@@ -22,7 +27,11 @@ class Sdl3GpuText internal constructor(
         checkOpen()
         check(SDL3Ttf.TTF_UpdateText(handle)) { errorMessage("Failed to update text layout") }
         val sequence = SDL3Ttf.TTF_GetGPUTextDrawData(handle)
-        return if (sequence.address() == 0L) null else Sdl3GpuTextSequence(sequence)
+        return if (sequence.address() == 0L) {
+            null
+        } else {
+            Sdl3GpuTextSequence(sequence)
+        }
     }
 
     private fun checkOpen() {
@@ -44,7 +53,6 @@ class Sdl3GpuText internal constructor(
 
 @JvmInline
 value class Sdl3GpuTextSequence internal constructor(private val address: MemorySegment) {
-
     private val data: MemorySegment
         get() = address.reinterpret(TTF_GPUAtlasDrawSequence.sizeof())
 
@@ -60,7 +68,11 @@ value class Sdl3GpuTextSequence internal constructor(private val address: Memory
     val next: Sdl3GpuTextSequence?
         get() {
             val next = TTF_GPUAtlasDrawSequence.next(data)
-            return if (next.address() == 0L) null else Sdl3GpuTextSequence(next)
+            return if (next.address() == 0L) {
+                null
+            } else {
+                Sdl3GpuTextSequence(next)
+            }
         }
 
     fun copyVertices(destination: MemorySegment, offset: Long) {
@@ -81,6 +93,12 @@ value class Sdl3GpuTextSequence internal constructor(private val address: Memory
     fun copyIndices(destination: MemorySegment, offset: Long) {
         val size = indexCount * 4L
         assert(size >= 0L)
-        MemorySegment.copy(TTF_GPUAtlasDrawSequence.indices(data).reinterpret(size), 0L, destination, offset, size)
+        MemorySegment.copy(
+            TTF_GPUAtlasDrawSequence.indices(data).reinterpret(size),
+            0L,
+            destination,
+            offset,
+            size,
+        )
     }
 }

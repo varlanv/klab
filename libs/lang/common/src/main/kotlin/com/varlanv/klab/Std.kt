@@ -4,7 +4,6 @@ import com.varlanv.klab.log.Log
 import kotlin.time.Duration.Companion.nanoseconds
 
 class Std(log: Log) {
-
     @PublishedApi
     internal val logEnabled = log.enabled
 
@@ -17,7 +16,10 @@ class Std(log: Log) {
         }
     }
 
-    inline fun <R> measure(block: () -> R, operation: String = ""): R {
+    inline fun <R> measure(
+        block: () -> R,
+        operation: String = "",
+    ): R {
         assert(operation == "" || operation.isNotBlank()) { "`operation` param should be empty or non-blank string" }
         if (logEnabled) {
             val before = System.nanoTime()
@@ -25,8 +27,11 @@ class Std(log: Log) {
                 block()
             } finally {
                 val timeTaken = System.nanoTime() - before
-                val msg =
-                    if (operation == "") "Measured [ ${timeTaken.nanoseconds} ]" else "[ $operation ] measured [ ${timeTaken.nanoseconds} ] "
+                val msg = if (operation == "") {
+                    "Measured [ ${timeTaken.nanoseconds} ]"
+                } else {
+                    "[ $operation ] measured [ ${timeTaken.nanoseconds} ] "
+                }
                 logSink.write(msg)
             }
         }

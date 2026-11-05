@@ -5,7 +5,6 @@ import com.varlanv.klab.sdl3.ffi.generated.SDL_DisplayMode
 import java.lang.foreign.MemorySegment
 
 class Sdl3Window internal constructor(internal var handle: MemorySegment) : AutoCloseable {
-
     val relativeMouseMode: Boolean
         get() {
             checkOpen()

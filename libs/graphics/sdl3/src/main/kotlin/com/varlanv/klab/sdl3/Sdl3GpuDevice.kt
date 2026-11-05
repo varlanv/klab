@@ -1,13 +1,12 @@
 package com.varlanv.klab.sdl3
 
-import com.varlanv.klab.mem.NativeAllocator
 import com.varlanv.klab.collections.Bytes
+import com.varlanv.klab.mem.NativeAllocator
 import com.varlanv.klab.sdl3.ffi.generated.*
 import com.varlanv.klab.sdl3.ffi.generated.ttf.SDL3Ttf
 import java.lang.foreign.MemorySegment
 
 class Sdl3GpuDevice internal constructor(internal var handle: MemorySegment) : AutoCloseable {
-
     private var selectedDepthFormat = 0
 
     val depthTextureFormat: Sdl3GpuTextureFormat
@@ -15,16 +14,24 @@ class Sdl3GpuDevice internal constructor(internal var handle: MemorySegment) : A
             checkOpen()
             if (selectedDepthFormat == 0) {
                 selectedDepthFormat = when {
-                    supportsDepthFormat(SDL3.SDL_GPU_TEXTUREFORMAT_D32_FLOAT()) -> SDL3.SDL_GPU_TEXTUREFORMAT_D32_FLOAT()
-                    supportsDepthFormat(SDL3.SDL_GPU_TEXTUREFORMAT_D24_UNORM()) -> SDL3.SDL_GPU_TEXTUREFORMAT_D24_UNORM()
-                    supportsDepthFormat(SDL3.SDL_GPU_TEXTUREFORMAT_D16_UNORM()) -> SDL3.SDL_GPU_TEXTUREFORMAT_D16_UNORM()
+                    supportsDepthFormat(
+                        SDL3.SDL_GPU_TEXTUREFORMAT_D32_FLOAT(),
+                    ) -> SDL3.SDL_GPU_TEXTUREFORMAT_D32_FLOAT()
+                    supportsDepthFormat(
+                        SDL3.SDL_GPU_TEXTUREFORMAT_D24_UNORM(),
+                    ) -> SDL3.SDL_GPU_TEXTUREFORMAT_D24_UNORM()
+                    supportsDepthFormat(
+                        SDL3.SDL_GPU_TEXTUREFORMAT_D16_UNORM(),
+                    ) -> SDL3.SDL_GPU_TEXTUREFORMAT_D16_UNORM()
                     else -> error("GPU device does not support a depth texture format")
                 }
             }
             return Sdl3GpuTextureFormat(selectedDepthFormat)
         }
 
-    private fun supportsDepthFormat(format: Int): Boolean = SDL3.SDL_GPUTextureSupportsFormat(
+    private fun supportsDepthFormat(
+        format: Int,
+    ): Boolean = SDL3.SDL_GPUTextureSupportsFormat(
         handle,
         format,
         SDL3.SDL_GPU_TEXTURETYPE_2D(),
@@ -63,7 +70,11 @@ class Sdl3GpuDevice internal constructor(internal var handle: MemorySegment) : A
         return Sdl3GpuTextEngine(device = handle, handle = engine)
     }
 
-    fun createBuffer(gpa: NativeAllocator, usage: Sdl3GpuBufferUsage, size: Int): Sdl3GpuBuffer {
+    fun createBuffer(
+        gpa: NativeAllocator,
+        usage: Sdl3GpuBufferUsage,
+        size: Int,
+    ): Sdl3GpuBuffer {
         checkOpen()
         require(size > 0)
         val info = SDL_GPUBufferCreateInfo.allocate(gpa).fill(0)
@@ -91,7 +102,11 @@ class Sdl3GpuDevice internal constructor(internal var handle: MemorySegment) : A
         return Sdl3GpuTransferBuffer(device = handle, handle = buffer, size = size)
     }
 
-    fun createDepthTexture(gpa: NativeAllocator, width: Int, height: Int): Sdl3GpuDepthTexture {
+    fun createDepthTexture(
+        gpa: NativeAllocator,
+        width: Int,
+        height: Int,
+    ): Sdl3GpuDepthTexture {
         checkOpen()
         require(width > 0 && height > 0)
         val format = depthTextureFormat
@@ -113,12 +128,16 @@ class Sdl3GpuDevice internal constructor(internal var handle: MemorySegment) : A
         gpa: NativeAllocator,
         width: Int,
         height: Int,
-        srgb: Boolean = true
+        srgb: Boolean = true,
     ): Sdl3GpuSampledTexture {
         checkOpen()
         require(width > 0 && height > 0)
         val format = Sdl3GpuTextureFormat(
-            if (srgb) SDL3.SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM_SRGB() else SDL3.SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM(),
+            if (srgb) {
+                SDL3.SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM_SRGB()
+            } else {
+                SDL3.SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM()
+            },
         )
         val info = SDL_GPUTextureCreateInfo.allocate(gpa).fill(0)
         SDL_GPUTextureCreateInfo.type(info, SDL3.SDL_GPU_TEXTURETYPE_2D())
@@ -165,12 +184,21 @@ class Sdl3GpuDevice internal constructor(internal var handle: MemorySegment) : A
         require(code.size >= 20 && code.size % 4 == 0)
         require(entrypoint.isNotEmpty() && '\u0000' !in entrypoint)
         require(samplerCount >= 0 && uniformBufferCount >= 0)
-        val shaderCode = gpa.allocate(code.size.toLong(), 4)
-        MemorySegment.copy(MemorySegment.ofArray(code), 0L, shaderCode, 0L, shaderCode.byteSize())
+        val shaderCode = gpa.allocate(byteSize = code.size.toLong(), byteAlignment = 4)
+        MemorySegment.copy(
+            MemorySegment.ofArray(code),
+            0L,
+            shaderCode,
+            0L,
+            shaderCode.byteSize(),
+        )
         val info = SDL_GPUShaderCreateInfo.allocate(gpa).fill(0)
         SDL_GPUShaderCreateInfo.code(info, shaderCode)
         SDL_GPUShaderCreateInfo.code_size(info, shaderCode.byteSize())
-        SDL_GPUShaderCreateInfo.entrypoint(info, gpa.allocateFrom(entrypoint))
+        SDL_GPUShaderCreateInfo.entrypoint(
+            info,
+            gpa.allocateFrom(entrypoint),
+        )
         SDL_GPUShaderCreateInfo.format(info, SDL3.SDL_GPU_SHADERFORMAT_SPIRV())
         SDL_GPUShaderCreateInfo.stage(
             info,
@@ -212,7 +240,10 @@ class Sdl3GpuDevice internal constructor(internal var handle: MemorySegment) : A
         val info = SDL_GPUGraphicsPipelineCreateInfo.allocate(gpa).fill(0)
         SDL_GPUGraphicsPipelineCreateInfo.vertex_shader(info, vertexShader.handle)
         SDL_GPUGraphicsPipelineCreateInfo.fragment_shader(info, fragmentShader.handle)
-        SDL_GPURasterizerState.enable_depth_clip(SDL_GPUGraphicsPipelineCreateInfo.rasterizer_state(info), true)
+        SDL_GPURasterizerState.enable_depth_clip(
+            SDL_GPUGraphicsPipelineCreateInfo.rasterizer_state(info),
+            true,
+        )
         SDL_GPUGraphicsPipelineCreateInfo.primitive_type(
             info,
             when (primitiveType) {
@@ -230,7 +261,11 @@ class Sdl3GpuDevice internal constructor(internal var handle: MemorySegment) : A
                 Sdl3GpuVertexFormat.Float3 -> 12
                 Sdl3GpuVertexFormat.Float4 -> 16
             }
-            require(attribute.location >= 0 && attribute.offset >= 0 && attribute.offset.toLong() + attributeSize <= vertexPitch)
+            require(
+                attribute.location >= 0 &&
+                    attribute.offset >= 0 &&
+                    attribute.offset.toLong() + attributeSize <= vertexPitch,
+            )
             val native = SDL_GPUVertexAttribute.asSlice(nativeAttributes, index.toLong())
             SDL_GPUVertexAttribute.location(native, attribute.location)
             SDL_GPUVertexAttribute.offset(native, attribute.offset)

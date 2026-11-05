@@ -57,15 +57,12 @@ const val ALPHA_OPAQUE = 0
 const val ALPHA_MASK = 1
 const val ALPHA_BLEND = 2
 
-class KExtension(
-    val name: String,
-    val data: String
-)
+class KExtension(val name: String, val data: String)
 
 open class KProperty(
     val name: String?,
     val extras: String?,
-    val extensions: Array<KExtension>
+    val extensions: Array<KExtension>,
 )
 
 class KAsset(
@@ -119,7 +116,6 @@ class KSparse(
 
 @JvmInline
 value class AccessorType(val value: Int) {
-
     fun componentCount(): Int = when (value) {
         GLTF_TYPE_SCALAR -> 1
         GLTF_TYPE_VEC2 -> VEC2_COMPONENTS
@@ -134,8 +130,10 @@ value class AccessorType(val value: Int) {
     fun elementSize(componentType: ComponentType): Int {
         val bytes = componentType.componentSize()
         return when (value) {
-            GLTF_TYPE_MAT2 -> ((MAT2_ROWS * bytes + MATRIX_COLUMN_ALIGNMENT - 1) and -MATRIX_COLUMN_ALIGNMENT) * MAT2_ROWS
-            GLTF_TYPE_MAT3 -> ((MAT3_ROWS * bytes + MATRIX_COLUMN_ALIGNMENT - 1) and -MATRIX_COLUMN_ALIGNMENT) * MAT3_ROWS
+            GLTF_TYPE_MAT2 -> ((MAT2_ROWS * bytes + MATRIX_COLUMN_ALIGNMENT - 1) and -MATRIX_COLUMN_ALIGNMENT) *
+                MAT2_ROWS
+            GLTF_TYPE_MAT3 -> ((MAT3_ROWS * bytes + MATRIX_COLUMN_ALIGNMENT - 1) and -MATRIX_COLUMN_ALIGNMENT) *
+                MAT3_ROWS
             else -> componentCount() * bytes
         }
     }
@@ -143,7 +141,6 @@ value class AccessorType(val value: Int) {
 
 @JvmInline
 value class ComponentType(val value: Int) {
-
     fun componentSize(): Int = when (value) {
         GLTF_COMPONENT_BYTE, GLTF_COMPONENT_UNSIGNED_BYTE -> Byte.SIZE_BYTES
         GLTF_COMPONENT_SHORT, GLTF_COMPONENT_UNSIGNED_SHORT -> Short.SIZE_BYTES
@@ -153,21 +150,27 @@ value class ComponentType(val value: Int) {
 
     fun readUnsigned(bytes: Bytes, offset: Int): Long = when (value) {
         GLTF_COMPONENT_UNSIGNED_BYTE -> (bytes[offset].toInt() and UNSIGNED_BYTE_MASK).toLong()
-        GLTF_COMPONENT_UNSIGNED_SHORT -> ((shortViewHandle.get(
-            bytes,
-            offset
-        ) as Short).toInt() and UNSIGNED_SHORT_MASK).toLong()
+        GLTF_COMPONENT_UNSIGNED_SHORT -> ((shortViewHandle.get(bytes, offset) as Short).toInt() and
+            UNSIGNED_SHORT_MASK).toLong()
 
         GLTF_COMPONENT_UNSIGNED_INT -> (intViewHandle.get(bytes, offset) as Int).toLong() and UNSIGNED_INT_MASK
         else -> error("Invalid unsigned component type")
     }
 
-    internal fun readFloat(bytes: Bytes, offset: Int, normalized: Boolean): Float = when (value) {
-        GLTF_COMPONENT_FLOAT -> Float.fromBits(intViewHandle.get(bytes, offset) as Int)
-        GLTF_COMPONENT_BYTE -> if (normalized) {
-            maxOf(-1f, bytes[offset] / SIGNED_BYTE_MAX)
-        } else {
-            bytes[offset].toFloat()
+    internal fun readFloat(
+        bytes: Bytes,
+        offset: Int,
+        normalized: Boolean,
+    ): Float = when (value) {
+        GLTF_COMPONENT_FLOAT -> {
+            Float.fromBits(intViewHandle.get(bytes, offset) as Int)
+        }
+        GLTF_COMPONENT_BYTE -> {
+            if (normalized) {
+                maxOf(-1f, bytes[offset] / SIGNED_BYTE_MAX)
+            } else {
+                bytes[offset].toFloat()
+            }
         }
 
         GLTF_COMPONENT_UNSIGNED_BYTE -> {
@@ -197,15 +200,18 @@ value class ComponentType(val value: Int) {
             }
         }
 
-        GLTF_COMPONENT_UNSIGNED_INT -> if (normalized) {
-            0f
-        } else {
-            ((intViewHandle.get(bytes, offset) as Int).toLong() and UNSIGNED_INT_MASK).toFloat()
+        GLTF_COMPONENT_UNSIGNED_INT -> {
+            if (normalized) {
+                0f
+            } else {
+                ((intViewHandle.get(bytes, offset) as Int).toLong() and UNSIGNED_INT_MASK).toFloat()
+            }
         }
 
-        else -> error("Invalid component type")
+        else -> {
+            error("Invalid component type")
+        }
     }
-
 }
 
 class KAccessor(
@@ -228,18 +234,15 @@ class KAttribute(
     val name: String,
     val accessor: Int,
     val semantic: Int,
-    val set: Int
+    val set: Int,
 )
 
-class KDraco(
-    val bufferView: Int,
-    val attributes: Array<KAttribute>
-)
+class KDraco(val bufferView: Int, val attributes: Array<KAttribute>)
 
 class KMaterialMapping(
     val variant: Int,
     val material: Int,
-    val extras: String?
+    val extras: String?,
 )
 
 class KPrimitive(
@@ -301,30 +304,27 @@ class KClearcoat(
     val roughnessFactor: Float,
 )
 
-class KTransmission(
-    val texture: KTextureView?,
-    val factor: Float
-)
+class KTransmission(val texture: KTextureView?, val factor: Float)
 
 class KSpecular(
     val texture: KTextureView?,
     val colorTexture: KTextureView?,
     val factor: Float,
-    val colorFactor: Floats
+    val colorFactor: Floats,
 )
 
 class KVolume(
     val thicknessTexture: KTextureView?,
     val thicknessFactor: Float,
     val attenuationColor: Floats,
-    val attenuationDistance: Float
+    val attenuationDistance: Float,
 )
 
 class KSheen(
     val colorTexture: KTextureView?,
     val colorFactor: Floats,
     val roughnessTexture: KTextureView?,
-    val roughnessFactor: Float
+    val roughnessFactor: Float,
 )
 
 class KIridescence(
@@ -333,20 +333,20 @@ class KIridescence(
     val ior: Float,
     val thicknessMin: Float,
     val thicknessMax: Float,
-    val thicknessTexture: KTextureView?
+    val thicknessTexture: KTextureView?,
 )
 
 class KDiffuseTransmission(
     val texture: KTextureView?,
     val factor: Float,
     val colorFactor: Floats,
-    val colorTexture: KTextureView?
+    val colorTexture: KTextureView?,
 )
 
 class KAnisotropy(
     val strength: Float,
     val rotation: Float,
-    val texture: KTextureView?
+    val texture: KTextureView?,
 )
 
 class KMaterial(
@@ -445,9 +445,8 @@ class KScene(
     name: String?,
     val nodes: Ints,
     extras: String?,
-    extensions: Array<KExtension>
-) :
-    KProperty(name, extras, extensions)
+    extensions: Array<KExtension>,
+) : KProperty(name, extras, extensions)
 
 class KSkin(
     name: String?,
@@ -487,7 +486,7 @@ class KPerspective(
     val yfov: Float,
     val zfar: Float?,
     val znear: Float,
-    val extras: String?
+    val extras: String?,
 )
 
 class KOrthographic(
@@ -495,7 +494,7 @@ class KOrthographic(
     val ymag: Float,
     val zfar: Float,
     val znear: Float,
-    val extras: String?
+    val extras: String?,
 )
 
 class KCamera(
@@ -518,10 +517,7 @@ class KLight(
     extras: String?,
 ) : KProperty(name, extras, emptyArray())
 
-class KVariant(
-    name: String?,
-    extras: String?
-) : KProperty(name, extras, emptyArray())
+class KVariant(name: String?, extras: String?) : KProperty(name, extras, emptyArray())
 
 class KGltf(
     val asset: KAsset,
@@ -556,9 +552,4 @@ class KGltf(
 val defaultTranslation: Floats = floatArrayOf(0f, 0f, 0f)
 val defaultRotation: Floats = floatArrayOf(0f, 0f, 0f, 1f)
 val defaultScale: Floats = floatArrayOf(1f, 1f, 1f)
-val defaultMatrix: Floats = floatArrayOf(
-    1f, 0f, 0f, 0f,
-    0f, 1f, 0f, 0f,
-    0f, 0f, 1f, 0f,
-    0f, 0f, 0f, 1f
-)
+val defaultMatrix: Floats = floatArrayOf(1f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 1f)

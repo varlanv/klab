@@ -137,13 +137,14 @@ class InternalKonventionPlugin : Plugin<Project> {
         }
 
         fun configureLinters() {
+            pluginManager.apply("com.varlanv.wrasse")
             tasks.register("lint") { task ->
                 task.group = "verification"
-                // todo
+                task.dependsOn("wrasseLint")
             }
             tasks.register("format") { task ->
                 task.group = "verification"
-                // todo
+                task.dependsOn("wrasseFormat")
             }
         }
     }

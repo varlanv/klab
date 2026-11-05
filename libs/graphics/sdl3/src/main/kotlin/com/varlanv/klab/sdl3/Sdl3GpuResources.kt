@@ -33,7 +33,6 @@ class Sdl3GpuSampledTexture internal constructor(
     val height: Int,
     val format: Sdl3GpuTextureFormat,
 ) : AutoCloseable {
-
     val texture: Sdl3GpuTexture
         get() {
             checkOpen()
@@ -59,7 +58,6 @@ class Sdl3GpuDepthTexture internal constructor(
     val height: Int,
     val format: Sdl3GpuTextureFormat,
 ) : AutoCloseable {
-
     internal fun checkOpen() {
         check(handle.address() != 0L) { "GPU depth texture is closed" }
     }
@@ -84,7 +82,6 @@ class Sdl3GpuBuffer internal constructor(
     val size: Int,
     val usage: Sdl3GpuBufferUsage,
 ) : AutoCloseable {
-
     internal fun checkOpen() {
         check(handle.address() != 0L) { "GPU buffer is closed" }
     }
@@ -102,7 +99,6 @@ class Sdl3GpuTransferBuffer internal constructor(
     internal var handle: MemorySegment,
     val size: Int,
 ) : AutoCloseable {
-
     internal var isMapped = false
         private set
 
@@ -128,7 +124,9 @@ class Sdl3GpuTransferBuffer internal constructor(
 
     override fun close() {
         if (handle.address() != 0L) {
-            if (isMapped) unmap()
+            if (isMapped) {
+                unmap()
+            }
             SDL3.SDL_ReleaseGPUTransferBuffer(device, handle)
             handle = MemorySegment.NULL
         }
@@ -139,7 +137,6 @@ class Sdl3GpuSampler internal constructor(
     internal val device: MemorySegment,
     internal var handle: MemorySegment,
 ) : AutoCloseable {
-
     internal fun checkOpen() {
         check(handle.address() != 0L) { "GPU sampler is closed" }
     }
@@ -157,7 +154,6 @@ class Sdl3GpuShader internal constructor(
     internal var handle: MemorySegment,
     val stage: Sdl3GpuShaderStage,
 ) : AutoCloseable {
-
     internal fun checkOpen() {
         check(handle.address() != 0L) { "GPU shader is closed" }
     }
@@ -175,7 +171,6 @@ class Sdl3GpuGraphicsPipeline internal constructor(
     internal var handle: MemorySegment,
     internal val depthFormat: Sdl3GpuTextureFormat?,
 ) : AutoCloseable {
-
     internal fun checkOpen() {
         check(handle.address() != 0L) { "GPU graphics pipeline is closed" }
     }

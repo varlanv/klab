@@ -14,7 +14,6 @@ class GpuModel(
     val nodes: List<GpuModelNode>,
     private val resources: ResourcesHolder,
 ) : TracedCloseable {
-
     private var closed = false
 
     context(std: Std)

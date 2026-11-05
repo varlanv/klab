@@ -17,11 +17,16 @@ import kotlin.math.max
  * Not threadsafe unless explicitly specified.
  */
 interface NativeAllocator : SegmentAllocator {
-
     /** Allocates bytes with a positive power-of-two alignment. */
-    fun alloc(requested: Long, alignment: Long = 1): MemorySegment
+    fun alloc(
+        requested: Long,
+        alignment: Long = 1,
+    ): MemorySegment
 
-    override fun allocate(byteSize: Long, byteAlignment: Long): MemorySegment = alloc(byteSize, byteAlignment)
+    override fun allocate(
+        byteSize: Long,
+        byteAlignment: Long,
+    ): MemorySegment = alloc(requested = byteSize, alignment = byteAlignment)
 
     interface Managed {
         fun free(segment: MemorySegment)
@@ -29,9 +34,8 @@ interface NativeAllocator : SegmentAllocator {
 
     class Arena(
         private val initialSize: Long,
-        private val arenaProvider: JdkArenaProvider
+        private val arenaProvider: JdkArenaProvider,
     ) : NativeAllocator, AutoCloseable {
-
         init {
             assert(initialSize >= 0)
         }
@@ -42,7 +46,10 @@ interface NativeAllocator : SegmentAllocator {
         private var closed: Boolean = false
         private var maxAlignment = 1L
 
-        private class Item(val segment: MemorySegment, var currentOffset: Long = 0)
+        private class Item(
+            val segment: MemorySegment,
+            var currentOffset: Long = 0,
+        )
 
         override fun alloc(requested: Long, alignment: Long): MemorySegment {
             assert(!closed)
@@ -70,20 +77,32 @@ interface NativeAllocator : SegmentAllocator {
             segments.forEachIndexed { index, item ->
                 var segment = item.segment
                 if (segment.address() == 0L) {
-                    segment = jdkArena.allocate(max(requested, initialSize), alignment)
+                    segment = jdkArena.allocate(
+                        max(
+                            requested,
+                            initialSize,
+                        ),
+                        alignment,
+                    )
                     segments[index] = Item(segment = segment, currentOffset = requested)
                     return segment.asSlice(0, requested)
                 }
             }
             // grow buffer by 1 to fit new item. Not growing by multiplicand because grow is intended to be rare path
-            val newSegment = jdkArena.allocate(max(requested, initialSize), alignment)
-            this.segments =
-                MutArray(segments.size + 1) { idx ->
-                    if (idx < segments.size) segments[idx] else Item(
-                        segment = newSegment,
-                        currentOffset = requested,
-                    )
+            val newSegment = jdkArena.allocate(
+                max(
+                    requested,
+                    initialSize,
+                ),
+                alignment,
+            )
+            this.segments = MutArray(segments.size + 1) { idx ->
+                if (idx < segments.size) {
+                    segments[idx]
+                } else {
+                    Item(segment = newSegment, currentOffset = requested)
                 }
+            }
             return newSegment.asSlice(0, requested)
         }
 

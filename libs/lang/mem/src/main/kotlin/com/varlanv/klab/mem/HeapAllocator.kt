@@ -19,16 +19,13 @@ import kotlin.math.max
  * Not threadsafe unless explicitly specified.
  */
 interface HeapAllocator {
-
     fun alloc(requested: Int): MutBytesSlice
-
 
     interface Managed {
         fun free(segment: MutBytesSlice)
     }
 
     class Arena(private val initialSize: Int) : HeapAllocator, AutoCloseable {
-
         init {
             assert(initialSize >= 0)
         }
@@ -36,7 +33,10 @@ interface HeapAllocator {
         private var segments: MutArray<Item> = MutArray(1) { Item(segment = stableEmptyMutBytes) }
         private var closed: Boolean = false
 
-        private class Item(val segment: MutBytes, var currentOffset: Int = 0) {
+        private class Item(
+            val segment: MutBytes,
+            var currentOffset: Int = 0,
+        ) {
             companion object {
                 val emptyArray: MutArray<Item> = emptyArray()
             }
@@ -67,18 +67,18 @@ interface HeapAllocator {
                 if (segment === stableEmptyMutBytes) {
                     segment = MutBytes(max(requested, initialSize))
                     segments[index] = Item(segment = segment, currentOffset = requested)
-                    return MutBytesSlice(bytes = segment, offset = 0, requested)
+                    return MutBytesSlice(bytes = segment, offset = 0, len = requested)
                 }
             }
             // grow buffer by 1 to fit new item. Not growing by multiplicand because grow is intended to be rare path
             val newSegment = MutBytes(max(requested, initialSize))
-            this.segments =
-                MutArray(segments.size + 1) { idx ->
-                    if (idx < segments.size) segments[idx] else Item(
-                        segment = newSegment,
-                        currentOffset = requested,
-                    )
+            this.segments = MutArray(segments.size + 1) { idx ->
+                if (idx < segments.size) {
+                    segments[idx]
+                } else {
+                    Item(segment = newSegment, currentOffset = requested)
                 }
+            }
             return MutBytesSlice(bytes = newSegment, offset = 0, len = requested)
         }
 

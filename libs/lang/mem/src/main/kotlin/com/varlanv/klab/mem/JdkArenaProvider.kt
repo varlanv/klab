@@ -4,7 +4,6 @@ import java.lang.foreign.Arena
 import java.util.concurrent.atomic.AtomicInteger
 
 sealed interface JdkArenaProvider {
-
     fun get(): Arena
 
     data object Confined : JdkArenaProvider {
@@ -25,6 +24,7 @@ sealed interface JdkArenaProvider {
 
     class Debug(val generator: () -> Arena) : JdkArenaProvider {
         private val getCalls = AtomicInteger()
+
         override fun get(): Arena {
             getCalls.incrementAndGet()
             return generator()

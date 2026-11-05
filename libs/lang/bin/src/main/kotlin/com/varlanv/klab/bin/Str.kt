@@ -6,5 +6,5 @@ typealias Str = BytesSlice
 
 fun String.toStr(): Str {
     val arr = encodeToByteArray()
-    return BytesSlice(arr, 0, arr.size)
+    return BytesSlice(bytes = arr, offset = 0, len = arr.size)
 }

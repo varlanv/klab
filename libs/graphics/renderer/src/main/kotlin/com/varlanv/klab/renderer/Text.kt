@@ -12,7 +12,6 @@ class Text internal constructor(
     private val native: Sdl3GpuText,
     private var content: String,
 ) : AutoCloseable {
-
     private var closed = false
     internal var dirty = true
         private set
@@ -61,7 +60,12 @@ class Text internal constructor(
         this.y = y
     }
 
-    fun setColor(red: Float, green: Float, blue: Float, alpha: Float = 1f) {
+    fun setColor(
+        red: Float,
+        green: Float,
+        blue: Float,
+        alpha: Float = 1f,
+    ) {
         checkOpen()
         require(red.isFinite() && green.isFinite() && blue.isFinite() && alpha.isFinite())
         this.red = red
@@ -72,8 +76,10 @@ class Text internal constructor(
 
     internal fun prepare(gpa: NativeAllocator) {
         checkOpen()
-        if (!dirty) return
-        native.setText(gpa, content)
+        if (!dirty) {
+            return
+        }
+        native.setText(gpa = gpa, text = content)
         val first = native.drawData()
         var sequence = first
         var verticesNeeded = 0
@@ -88,10 +94,14 @@ class Text internal constructor(
         }
         val vertexBytes = Math.multiplyExact(verticesNeeded, 16)
         val indexBytes = Math.multiplyExact(indicesNeeded, 4)
-        if (vertices.size < vertexBytes) vertices = MutBytes(growCapacity(vertices.size, vertexBytes))
-        if (indices.size < indexBytes) indices = MutBytes(growCapacity(indices.size, indexBytes))
+        if (vertices.size < vertexBytes) {
+            vertices = MutBytes(growCapacity(current = vertices.size, required = vertexBytes))
+        }
+        if (indices.size < indexBytes) {
+            indices = MutBytes(growCapacity(current = indices.size, required = indexBytes))
+        }
         if (batchFirstIndices.size < batchesNeeded) {
-            val capacity = growCapacity(batchFirstIndices.size, batchesNeeded)
+            val capacity = growCapacity(current = batchFirstIndices.size, required = batchesNeeded)
             batchFirstIndices = MutInts(capacity)
             batchIndexCounts = MutInts(capacity)
             batchVertexOffsets = MutInts(capacity)
@@ -137,5 +147,11 @@ class Text internal constructor(
 
 internal fun growCapacity(current: Int, required: Int): Int {
     assert(current >= 0 && required >= 0)
-    return maxOf(required.toLong(), maxOf(16L, current.toLong() * 2L)).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+    return maxOf(
+        required.toLong(),
+        maxOf(
+            16L,
+            current.toLong() * 2L,
+        ),
+    ).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
 }

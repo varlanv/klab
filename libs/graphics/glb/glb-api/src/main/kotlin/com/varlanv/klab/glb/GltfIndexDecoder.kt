@@ -3,11 +3,11 @@ package com.varlanv.klab.glb
 import com.varlanv.klab.collections.Bytes
 import com.varlanv.klab.collections.MutInts
 import com.varlanv.klab.vector.shortViewHandle
+import java.nio.ByteOrder
 import jdk.incubator.vector.ByteVector
 import jdk.incubator.vector.IntVector
 import jdk.incubator.vector.ShortVector
 import jdk.incubator.vector.VectorOperators
-import java.nio.ByteOrder
 
 internal const val VECTOR_PART_0 = 0
 internal const val VECTOR_PART_1 = 1
@@ -20,35 +20,48 @@ internal object GltfIndexDecoder {
     private val intsSpecies = IntVector.SPECIES_PREFERRED
     private val swapBytes = ByteOrder.nativeOrder() != ByteOrder.LITTLE_ENDIAN
 
-    fun copyShorts(bytes: Bytes, start: Int, count: Int, out: MutInts) {
+    fun copyShorts(
+        bytes: Bytes,
+        start: Int,
+        count: Int,
+        out: MutInts,
+    ) {
         var index = 0
         val end = shortsSpecies.loopBound(count)
         val half = intsSpecies.length()
         while (index < end) {
-            var lanes =
-                ByteVector.fromArray(bytesSpecies, bytes, start + index * Short.SIZE_BYTES).reinterpretAsShorts()
+            var lanes = ByteVector
+                .fromArray(bytesSpecies, bytes, start + index * Short.SIZE_BYTES)
+                .reinterpretAsShorts()
             if (swapBytes) {
                 lanes = lanes.lanewise(VectorOperators.REVERSE_BYTES)
             }
             (lanes.convertShape(
                 VectorOperators.ZERO_EXTEND_S2I,
                 intsSpecies,
-                VECTOR_PART_0
+                VECTOR_PART_0,
             ) as IntVector).intoArray(out, index)
-            (lanes.convertShape(VectorOperators.ZERO_EXTEND_S2I, intsSpecies, VECTOR_PART_1) as IntVector).intoArray(
-                out,
-                index + half
-            )
+            (lanes.convertShape(
+                VectorOperators.ZERO_EXTEND_S2I,
+                intsSpecies,
+                VECTOR_PART_1,
+            ) as IntVector).intoArray(out, index + half)
             index += shortsSpecies.length()
         }
         while (index < count) {
             out[index] =
-                (shortViewHandle.get(bytes, start + index * Short.SIZE_BYTES) as Short).toInt() and UNSIGNED_SHORT_MASK
+                (shortViewHandle.get(bytes, start + index * Short.SIZE_BYTES) as Short).toInt() and
+                UNSIGNED_SHORT_MASK
             index++
         }
     }
 
-    fun copyBytes(bytes: Bytes, start: Int, count: Int, out: MutInts) {
+    fun copyBytes(
+        bytes: Bytes,
+        start: Int,
+        count: Int,
+        out: MutInts,
+    ) {
         var index = 0
         val end = bytesSpecies.loopBound(count)
         val quarter = intsSpecies.length()
@@ -57,20 +70,23 @@ internal object GltfIndexDecoder {
             (lanes.convertShape(
                 VectorOperators.ZERO_EXTEND_B2I,
                 intsSpecies,
-                VECTOR_PART_0
+                VECTOR_PART_0,
             ) as IntVector).intoArray(out, index)
-            (lanes.convertShape(VectorOperators.ZERO_EXTEND_B2I, intsSpecies, VECTOR_PART_1) as IntVector).intoArray(
-                out,
-                index + quarter
-            )
-            (lanes.convertShape(VectorOperators.ZERO_EXTEND_B2I, intsSpecies, VECTOR_PART_2) as IntVector).intoArray(
-                out,
-                index + quarter * VECTOR_PART_2
-            )
-            (lanes.convertShape(VectorOperators.ZERO_EXTEND_B2I, intsSpecies, VECTOR_PART_3) as IntVector).intoArray(
-                out,
-                index + quarter * VECTOR_PART_3
-            )
+            (lanes.convertShape(
+                VectorOperators.ZERO_EXTEND_B2I,
+                intsSpecies,
+                VECTOR_PART_1,
+            ) as IntVector).intoArray(out, index + quarter)
+            (lanes.convertShape(
+                VectorOperators.ZERO_EXTEND_B2I,
+                intsSpecies,
+                VECTOR_PART_2,
+            ) as IntVector).intoArray(out, index + quarter * VECTOR_PART_2)
+            (lanes.convertShape(
+                VectorOperators.ZERO_EXTEND_B2I,
+                intsSpecies,
+                VECTOR_PART_3,
+            ) as IntVector).intoArray(out, index + quarter * VECTOR_PART_3)
             index += bytesSpecies.length()
         }
         while (index < count) {

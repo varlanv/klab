@@ -28,55 +28,102 @@ private val emptyAttributes: Array<KAttribute> = emptyArray<KAttribute>()
 private val emptyStrings: Array<String> = emptyArray<String>()
 
 private class GltfMapping(private val json: GltfJson) {
-    private fun fieldTokenIndex(obj: Int, name: GltfName): Int =
-        if (obj < 0) {
-            JSON_MISSING_TOKEN
-        } else {
-            json.field(obj, name)
-        }
+    private fun fieldTokenIndex(obj: Int, name: GltfName): Int = if (obj < 0) {
+        JSON_MISSING_TOKEN
+    } else {
+        json.field(obj, name)
+    }
 
-    private fun string(obj: Int, name: GltfName): String? = json.string(fieldTokenIndex(obj, name))
-    private fun integer(obj: Int, name: GltfName, default: Int = 0): Int = json.int(fieldTokenIndex(obj, name), default)
+    private fun string(obj: Int, name: GltfName): String? = json.string(fieldTokenIndex(obj = obj, name = name))
+
+    private fun integer(
+        obj: Int,
+        name: GltfName,
+        default: Int = 0,
+    ): Int = json.int(
+        token = fieldTokenIndex(
+            obj = obj,
+            name = name,
+        ),
+        default = default,
+    )
+
     private fun ref(obj: Int, name: GltfName): Int {
-        val token = fieldTokenIndex(obj, name)
+        val token = fieldTokenIndex(obj = obj, name = name)
         if (token < 0) {
             return GLTF_MISSING_INDEX
         }
-        return json.int(token).also { assert(it >= 0) { "Negative glTF reference" } }
+        return json.int(token = token).also { assert(it >= 0) { "Negative glTF reference" } }
     }
 
-    private fun required(obj: Int, name: GltfName): Int =
-        fieldTokenIndex(obj, name).also { assert(it >= 0) { "Missing $name" } }
+    private fun required(
+        obj: Int,
+        name: GltfName,
+    ): Int = fieldTokenIndex(obj = obj, name = name).also { assert(it >= 0) { "Missing $name" } }
 
-    private fun requiredNumber(obj: Int, name: GltfName): Float = json.float(required(obj, name))
-    private fun number(obj: Int, name: GltfName, default: Float = 0f): Float =
-        json.float(fieldTokenIndex(obj, name), default)
+    private fun requiredNumber(obj: Int, name: GltfName): Float = json.float(token = required(obj = obj, name = name))
 
-    private fun boolean(obj: Int, name: GltfName): Boolean = json.bool(fieldTokenIndex(obj, name))
-    private fun extras(obj: Int): String? = json.raw(fieldTokenIndex(obj, GltfName.Extras))
+    private fun number(
+        obj: Int,
+        name: GltfName,
+        default: Float = 0f,
+    ): Float = json.float(
+        token = fieldTokenIndex(
+            obj = obj,
+            name = name,
+        ),
+        default = default,
+    )
+
+    private fun boolean(obj: Int, name: GltfName): Boolean = json.bool(token = fieldTokenIndex(obj = obj, name = name))
+
+    private fun extras(obj: Int): String? = json.raw(fieldTokenIndex(obj = obj, name = GltfName.Extras))
+
     private fun floats(obj: Int, name: GltfName): Floats {
-        val token = fieldTokenIndex(obj, name)
+        val token = fieldTokenIndex(obj = obj, name = name)
         return json.floats(token).also { assert(token < 0 || it.isNotEmpty()) { "Empty $name" } }
     }
 
-    private fun bounds(obj: Int, name: GltfName, componentType: Int): Floats {
-        val token = fieldTokenIndex(obj, name)
+    private fun bounds(
+        obj: Int,
+        name: GltfName,
+        componentType: Int,
+    ): Floats {
+        val token = fieldTokenIndex(obj = obj, name = name)
         val values = json.floats(token)
         assert(token < 0 || values.isNotEmpty()) { "Empty accessor $name" }
-        json.validateIntegerBounds(token, componentType)
+        json.validateIntegerBounds(token = token, componentType = componentType)
         return values
     }
 
     private fun ints(obj: Int, name: GltfName): Ints {
-        val token = fieldTokenIndex(obj, name)
+        val token = fieldTokenIndex(obj = obj, name = name)
         return json.ints(token).also { assert(token < 0 || it.isNotEmpty()) { "Empty $name" } }
     }
 
-    private inline fun fixed(obj: Int, name: GltfName, count: Int, defaults: () -> Floats): Floats {
-        return fixedToken(fieldTokenIndex(obj, name), name, count, defaults)
+    private inline fun fixed(
+        obj: Int,
+        name: GltfName,
+        count: Int,
+        defaults: () -> Floats,
+    ): Floats {
+        return fixedToken(
+            token = fieldTokenIndex(
+                obj = obj,
+                name = name,
+            ),
+            name = name,
+            count = count,
+            defaults = defaults,
+        )
     }
 
-    private inline fun fixedToken(token: Int, name: GltfName, count: Int, defaults: () -> Floats): Floats {
+    private inline fun fixedToken(
+        token: Int,
+        name: GltfName,
+        count: Int,
+        defaults: () -> Floats,
+    ): Floats {
         if (token < 0) {
             return defaults()
         }
@@ -99,7 +146,10 @@ private class GltfMapping(private val json: GltfJson) {
         }
     }
 
-    private fun strings(token: Int, allowEmpty: Boolean = false): Array<String> = if (token < 0) {
+    private fun strings(
+        token: Int,
+        allowEmpty: Boolean = false,
+    ): Array<String> = if (token < 0) {
         emptyStrings
     } else {
         json.requireArray(token)
@@ -112,7 +162,7 @@ private class GltfMapping(private val json: GltfJson) {
     }
 
     private fun extensions(obj: Int): Array<KExtension> {
-        val token = fieldTokenIndex(obj, GltfName.Extensions)
+        val token = fieldTokenIndex(obj = obj, name = GltfName.Extensions)
         if (token < 0) {
             return emptyExtensions
         }
@@ -121,209 +171,418 @@ private class GltfMapping(private val json: GltfJson) {
             return emptyExtensions
         }
         var key = token + 1
-        return lastProperties(Array(json.size(token)) {
-            val name = requireNotNull(json.string(key))
-            val next = json.next(key + 1)
-            val value = json.field(obj = token, nameToken = key)
-            json.requireObject(value)
-            val result = KExtension(
-                name,
-                requireNotNull(json.raw(value)),
-            )
-            key = next
-            result
-        }) { it.name }
+        return lastProperties(
+            Array(json.size(token)) {
+                val name = requireNotNull(json.string(key))
+                val next = json.next(key + 1)
+                val value = json.field(obj = token, nameToken = key)
+                json.requireObject(value)
+                val result = KExtension(
+                    name = name,
+                    data = requireNotNull(json.raw(value)),
+                )
+                key = next
+                result
+            },
+        ) { it.name }
     }
 
     private inline fun <reified T> lastProperties(values: Array<T>, name: (T) -> String): Array<T> {
         for (i in values.indices) {
             for (j in i + 1 until values.size) {
                 if (name(values[i]) == name(values[j])) {
-                    return values.filterIndexed { index, value ->
-                        (index + 1 until values.size).none { name(value) == name(values[it]) }
-                    }.toTypedArray()
+                    return values
+                        .filterIndexed { index, value ->
+                            (index + 1 until values.size).none { name(value) == name(values[it]) }
+                        }
+                        .toTypedArray()
                 }
             }
         }
         return values
     }
 
-    private fun extension(obj: Int, name: GltfName): Int =
-        fieldTokenIndex(fieldTokenIndex(obj, GltfName.Extensions), name)
+    private fun extension(obj: Int, name: GltfName): Int = fieldTokenIndex(
+        obj = fieldTokenIndex(
+            obj = obj,
+            name = GltfName.Extensions,
+        ),
+        name = name,
+    )
 
-    private fun extensionRef(obj: Int, name: GltfName, field: GltfName): Int {
-        val token = extension(obj, name)
+    private fun extensionRef(
+        obj: Int,
+        name: GltfName,
+        field: GltfName,
+    ): Int {
+        val token = extension(obj = obj, name = name)
         if (token < 0) {
             return GLTF_MISSING_INDEX
         }
-        return ref(token, field).also { assert(it >= 0) { "Missing $field in $name" } }
+        return ref(obj = token, name = field).also { assert(it >= 0) { "Missing $field in $name" } }
     }
 
-    private fun extensionFloat(obj: Int, extension: GltfName, name: GltfName, default: Float): Float? {
-        val token = this.extension(obj, extension)
+    private fun extensionFloat(
+        obj: Int,
+        extension: GltfName,
+        name: GltfName,
+        default: Float,
+    ): Float? {
+        val token = this.extension(obj = obj, name = extension)
         return if (token < 0) {
             null
         } else {
-            number(token, name, default)
+            number(obj = token, name = name, default = default)
         }
     }
 
     private fun optionalFloat(obj: Int, name: GltfName): Float? {
-        val token = fieldTokenIndex(obj, name)
+        val token = fieldTokenIndex(obj = obj, name = name)
         return if (token < 0) {
             null
         } else {
-            json.float(token)
+            json.float(token = token)
         }
     }
 
     fun map(): KGltf {
-        val asset = fieldTokenIndex(JSON_ROOT_TOKEN, GltfName.Asset)
+        val asset = fieldTokenIndex(obj = JSON_ROOT_TOKEN, name = GltfName.Asset)
         assert(asset >= 0) { "Missing glTF asset" }
-        val nodes = array(fieldTokenIndex(JSON_ROOT_TOKEN, GltfName.Nodes), ::node)
-        val rootExtensions = fieldTokenIndex(JSON_ROOT_TOKEN, GltfName.Extensions)
+        val nodes = array(
+            token = fieldTokenIndex(
+                obj = JSON_ROOT_TOKEN,
+                name = GltfName.Nodes,
+            ),
+            read = ::node,
+        )
+        val rootExtensions = fieldTokenIndex(obj = JSON_ROOT_TOKEN, name = GltfName.Extensions)
         return KGltf(
             asset = KAsset(
-                copyright = string(asset, GltfName.Copyright),
-                generator = string(asset, GltfName.Generator),
-                version = string(asset, GltfName.Version),
-                minVersion = string(asset, GltfName.MinVersion),
+                copyright = string(
+                    obj = asset,
+                    name = GltfName.Copyright,
+                ),
+                generator = string(
+                    obj = asset,
+                    name = GltfName.Generator,
+                ),
+                version = string(
+                    obj = asset,
+                    name = GltfName.Version,
+                ),
+                minVersion = string(
+                    obj = asset,
+                    name = GltfName.MinVersion,
+                ),
                 extras = extras(asset),
-                extensions = extensions(asset)
+                extensions = extensions(asset),
             ),
-            buffers = array(fieldTokenIndex(JSON_ROOT_TOKEN, GltfName.Buffers), ::buffer),
-            bufferViews = array(fieldTokenIndex(JSON_ROOT_TOKEN, GltfName.BufferViews), ::bufferView),
-            accessors = array(fieldTokenIndex(JSON_ROOT_TOKEN, GltfName.Accessors), ::accessor),
-            meshes = array(fieldTokenIndex(JSON_ROOT_TOKEN, GltfName.Meshes), ::mesh),
-            materials = array(fieldTokenIndex(JSON_ROOT_TOKEN, GltfName.Materials), ::material),
-            images = array(fieldTokenIndex(JSON_ROOT_TOKEN, GltfName.Images), ::image),
-            textures = array(fieldTokenIndex(JSON_ROOT_TOKEN, GltfName.Textures), ::texture),
-            samplers = array(fieldTokenIndex(JSON_ROOT_TOKEN, GltfName.Samplers), ::sampler),
+            buffers = array(
+                token = fieldTokenIndex(
+                    obj = JSON_ROOT_TOKEN,
+                    name = GltfName.Buffers,
+                ),
+                read = ::buffer,
+            ),
+            bufferViews = array(
+                token = fieldTokenIndex(
+                    obj = JSON_ROOT_TOKEN,
+                    name = GltfName.BufferViews,
+                ),
+                read = ::bufferView,
+            ),
+            accessors = array(
+                token = fieldTokenIndex(
+                    obj = JSON_ROOT_TOKEN,
+                    name = GltfName.Accessors,
+                ),
+                read = ::accessor,
+            ),
+            meshes = array(
+                token = fieldTokenIndex(
+                    obj = JSON_ROOT_TOKEN,
+                    name = GltfName.Meshes,
+                ),
+                read = ::mesh,
+            ),
+            materials = array(
+                token = fieldTokenIndex(
+                    obj = JSON_ROOT_TOKEN,
+                    name = GltfName.Materials,
+                ),
+                read = ::material,
+            ),
+            images = array(
+                token = fieldTokenIndex(
+                    obj = JSON_ROOT_TOKEN,
+                    name = GltfName.Images,
+                ),
+                read = ::image,
+            ),
+            textures = array(
+                token = fieldTokenIndex(
+                    obj = JSON_ROOT_TOKEN,
+                    name = GltfName.Textures,
+                ),
+                read = ::texture,
+            ),
+            samplers = array(
+                token = fieldTokenIndex(
+                    obj = JSON_ROOT_TOKEN,
+                    name = GltfName.Samplers,
+                ),
+                read = ::sampler,
+            ),
             nodes = nodes,
-            scenes = array(fieldTokenIndex(JSON_ROOT_TOKEN, GltfName.Scenes), ::scene),
-            scene = ref(JSON_ROOT_TOKEN, GltfName.Scene),
-            skins = array(fieldTokenIndex(JSON_ROOT_TOKEN, GltfName.Skins), ::skin),
-            animations = array(fieldTokenIndex(JSON_ROOT_TOKEN, GltfName.Animations), ::animation),
-            cameras = array(fieldTokenIndex(JSON_ROOT_TOKEN, GltfName.Cameras), ::camera),
+            scenes = array(
+                token = fieldTokenIndex(
+                    obj = JSON_ROOT_TOKEN,
+                    name = GltfName.Scenes,
+                ),
+                read = ::scene,
+            ),
+            scene = ref(
+                obj = JSON_ROOT_TOKEN,
+                name = GltfName.Scene,
+            ),
+            skins = array(
+                token = fieldTokenIndex(
+                    obj = JSON_ROOT_TOKEN,
+                    name = GltfName.Skins,
+                ),
+                read = ::skin,
+            ),
+            animations = array(
+                token = fieldTokenIndex(
+                    obj = JSON_ROOT_TOKEN,
+                    name = GltfName.Animations,
+                ),
+                read = ::animation,
+            ),
+            cameras = array(
+                token = fieldTokenIndex(
+                    obj = JSON_ROOT_TOKEN,
+                    name = GltfName.Cameras,
+                ),
+                read = ::camera,
+            ),
             lights = array(
-                fieldTokenIndex(fieldTokenIndex(rootExtensions, GltfName.KHR_lights_punctual), GltfName.Lights),
-                ::light
+                token = fieldTokenIndex(
+                    obj = fieldTokenIndex(
+                        obj = rootExtensions,
+                        name = GltfName.KHR_lights_punctual,
+                    ),
+                    name = GltfName.Lights,
+                ),
+                read = ::light,
             ),
             variants = array(
                 fieldTokenIndex(
-                    fieldTokenIndex(rootExtensions, GltfName.KHR_materials_variants),
-                    GltfName.Variants
-                )
+                    obj = fieldTokenIndex(
+                        obj = rootExtensions,
+                        name = GltfName.KHR_materials_variants,
+                    ),
+                    name = GltfName.Variants,
+                ),
             ) {
                 KVariant(
-                    string(it, GltfName.Name),
-                    extras(it)
+                    name = string(
+                        obj = it,
+                        name = GltfName.Name,
+                    ),
+                    extras = extras(it),
                 )
             },
-            extensionsUsed = strings(fieldTokenIndex(JSON_ROOT_TOKEN, GltfName.ExtensionsUsed)),
-            extensionsRequired = strings(fieldTokenIndex(JSON_ROOT_TOKEN, GltfName.ExtensionsRequired)),
+            extensionsUsed = strings(token = fieldTokenIndex(obj = JSON_ROOT_TOKEN, name = GltfName.ExtensionsUsed)),
+            extensionsRequired = strings(
+                token = fieldTokenIndex(
+                    obj = JSON_ROOT_TOKEN,
+                    name = GltfName.ExtensionsRequired,
+                ),
+            ),
             extras = extras(JSON_ROOT_TOKEN),
             extensions = extensions(JSON_ROOT_TOKEN),
         )
     }
 
-    private fun buffer(obj: Int): KBuffer =
-        KBuffer(
-            string(obj, GltfName.Name),
-            integer(obj, GltfName.ByteLength),
-            string(obj, GltfName.Uri),
-            extras(obj),
-            extensions(obj)
-        )
+    private fun buffer(obj: Int): KBuffer = KBuffer(
+        name = string(
+            obj = obj,
+            name = GltfName.Name,
+        ),
+        byteLength = integer(
+            obj = obj,
+            name = GltfName.ByteLength,
+        ),
+        uri = string(
+            obj = obj,
+            name = GltfName.Uri,
+        ),
+        extras = extras(obj),
+        extensions = extensions(obj),
+    )
 
     private fun bufferView(obj: Int): KBufferView {
         assert(
-            extension(obj, GltfName.EXT_meshopt_compression) < 0 || extension(
-                obj,
-                GltfName.KHR_meshopt_compression
-            ) < 0
+            extension(obj = obj, name = GltfName.EXT_meshopt_compression) < 0 ||
+                extension(obj = obj, name = GltfName.KHR_meshopt_compression) < 0,
         ) { "Conflicting meshopt extensions" }
-        var compression = extension(obj, GltfName.EXT_meshopt_compression)
+        var compression = extension(obj = obj, name = GltfName.EXT_meshopt_compression)
         var khr = false
         if (compression < 0) {
-            compression = extension(obj, GltfName.KHR_meshopt_compression)
+            compression = extension(obj = obj, name = GltfName.KHR_meshopt_compression)
             khr = compression >= 0
         }
         val meshopt = if (compression < 0) {
             null
         } else {
             KMeshopt(
-                ref(compression, GltfName.Buffer),
-                integer(compression, GltfName.ByteOffset),
-                integer(compression, GltfName.ByteLength),
-                integer(compression, GltfName.ByteStride),
-                integer(compression, GltfName.Count),
-                string(compression, GltfName.Mode),
-                string(compression, GltfName.Filter),
-                khr,
+                buffer = ref(
+                    obj = compression,
+                    name = GltfName.Buffer,
+                ),
+                offset = integer(
+                    obj = compression,
+                    name = GltfName.ByteOffset,
+                ),
+                byteLength = integer(
+                    obj = compression,
+                    name = GltfName.ByteLength,
+                ),
+                stride = integer(
+                    obj = compression,
+                    name = GltfName.ByteStride,
+                ),
+                count = integer(
+                    obj = compression,
+                    name = GltfName.Count,
+                ),
+                mode = string(
+                    obj = compression,
+                    name = GltfName.Mode,
+                ),
+                filter = string(
+                    obj = compression,
+                    name = GltfName.Filter,
+                ),
+                isKhr = khr,
             )
         }
         return KBufferView(
-            string(obj, GltfName.Name),
-            ref(obj, GltfName.Buffer),
-            integer(obj, GltfName.ByteOffset),
-            integer(obj, GltfName.ByteLength),
-            integer(obj, GltfName.ByteStride).also { assert(fieldTokenIndex(obj, GltfName.ByteStride) < 0 || it > 0) },
-            integer(obj, GltfName.Target).also { assert(fieldTokenIndex(obj, GltfName.Target) < 0 || it > 0) },
-            meshopt,
-            extras(obj),
-            extensions(obj)
+            name = string(
+                obj = obj,
+                name = GltfName.Name,
+            ),
+            buffer = ref(
+                obj = obj,
+                name = GltfName.Buffer,
+            ),
+            offset = integer(
+                obj = obj,
+                name = GltfName.ByteOffset,
+            ),
+            byteLength = integer(
+                obj = obj,
+                name = GltfName.ByteLength,
+            ),
+            stride = integer(
+                obj = obj,
+                name = GltfName.ByteStride,
+            ).also { assert(fieldTokenIndex(obj = obj, name = GltfName.ByteStride) < 0 || it > 0) },
+            target = integer(
+                obj = obj,
+                name = GltfName.Target,
+            ).also { assert(fieldTokenIndex(obj = obj, name = GltfName.Target) < 0 || it > 0) },
+            meshopt = meshopt,
+            extras = extras(obj),
+            extensions = extensions(obj),
         )
     }
 
     private fun accessor(obj: Int): KAccessor {
-        val sparseToken = fieldTokenIndex(obj, GltfName.Sparse)
+        val sparseToken = fieldTokenIndex(obj = obj, name = GltfName.Sparse)
         val sparse = if (sparseToken < 0) {
             null
         } else {
-            val indices = required(sparseToken, GltfName.Indices)
-            val values = required(sparseToken, GltfName.Values)
+            val indices = required(obj = sparseToken, name = GltfName.Indices)
+            val values = required(obj = sparseToken, name = GltfName.Values)
             KSparse(
-                count = integer(sparseToken, GltfName.Count),
-                indicesBufferView = ref(indices, GltfName.BufferView),
-                indicesOffset = integer(indices, GltfName.ByteOffset),
-                indicesComponentType = ComponentType(integer(indices, GltfName.ComponentType)),
-                valuesBufferView = ref(values, GltfName.BufferView),
-                valuesOffset = integer(values, GltfName.ByteOffset)
+                count = integer(
+                    obj = sparseToken,
+                    name = GltfName.Count,
+                ),
+                indicesBufferView = ref(
+                    obj = indices,
+                    name = GltfName.BufferView,
+                ),
+                indicesOffset = integer(
+                    obj = indices,
+                    name = GltfName.ByteOffset,
+                ),
+                indicesComponentType = ComponentType(integer(obj = indices, name = GltfName.ComponentType)),
+                valuesBufferView = ref(
+                    obj = values,
+                    name = GltfName.BufferView,
+                ),
+                valuesOffset = integer(
+                    obj = values,
+                    name = GltfName.ByteOffset,
+                ),
             )
         }
         assert(
-            fieldTokenIndex(obj, GltfName.BufferView) >= 0 || fieldTokenIndex(
-                obj,
-                GltfName.ByteOffset
-            ) < 0
+            fieldTokenIndex(obj = obj, name = GltfName.BufferView) >= 0 ||
+                fieldTokenIndex(obj = obj, name = GltfName.ByteOffset) < 0,
         ) { "Accessor byteOffset requires bufferView" }
-        val token = fieldTokenIndex(obj, GltfName.Type)
+        val token = fieldTokenIndex(obj = obj, name = GltfName.Type)
         val type = when {
-            json.matches(token, "SCALAR") -> GLTF_TYPE_SCALAR
-            json.matches(token, "VEC2") -> GLTF_TYPE_VEC2
-            json.matches(token, "VEC3") -> GLTF_TYPE_VEC3
-            json.matches(token, "VEC4") -> GLTF_TYPE_VEC4
-            json.matches(token, "MAT2") -> GLTF_TYPE_MAT2
-            json.matches(token, "MAT3") -> GLTF_TYPE_MAT3
-            json.matches(token, "MAT4") -> GLTF_TYPE_MAT4
+            json.matches(token = token, text = "SCALAR") -> GLTF_TYPE_SCALAR
+            json.matches(token = token, text = "VEC2") -> GLTF_TYPE_VEC2
+            json.matches(token = token, text = "VEC3") -> GLTF_TYPE_VEC3
+            json.matches(token = token, text = "VEC4") -> GLTF_TYPE_VEC4
+            json.matches(token = token, text = "MAT2") -> GLTF_TYPE_MAT2
+            json.matches(token = token, text = "MAT3") -> GLTF_TYPE_MAT3
+            json.matches(token = token, text = "MAT4") -> GLTF_TYPE_MAT4
             else -> GLTF_TYPE_INVALID
         }
-        val componentType = integer(obj, GltfName.ComponentType)
+        val componentType = integer(obj = obj, name = GltfName.ComponentType)
         return KAccessor(
-            name = string(obj, GltfName.Name),
+            name = string(
+                obj = obj,
+                name = GltfName.Name,
+            ),
             componentType = ComponentType(componentType),
             type = AccessorType(type),
-            offset = integer(obj, GltfName.ByteOffset),
-            count = integer(obj, GltfName.Count),
+            offset = integer(
+                obj = obj,
+                name = GltfName.ByteOffset,
+            ),
+            count = integer(
+                obj = obj,
+                name = GltfName.Count,
+            ),
             stride = 0,
-            bufferView = ref(obj, GltfName.BufferView),
-            normalized = boolean(obj, GltfName.Normalized),
-            min = bounds(obj, GltfName.Min, componentType),
-            max = bounds(obj, GltfName.Max, componentType),
+            bufferView = ref(
+                obj = obj,
+                name = GltfName.BufferView,
+            ),
+            normalized = boolean(
+                obj = obj,
+                name = GltfName.Normalized,
+            ),
+            min = bounds(
+                obj = obj,
+                name = GltfName.Min,
+                componentType = componentType,
+            ),
+            max = bounds(
+                obj = obj,
+                name = GltfName.Max,
+                componentType = componentType,
+            ),
             sparse = sparse,
             extras = extras(obj),
-            extensions = extensions(obj)
+            extensions = extensions(obj),
         )
     }
 
@@ -336,66 +595,84 @@ private class GltfMapping(private val json: GltfJson) {
             return emptyAttributes
         }
         var key = obj + 1
-        return lastProperties(Array(json.size(obj)) {
-            val name = requireNotNull(json.string(key))
-            val value = json.field(obj = obj, nameToken = key)
-            key = json.next(key + 1)
-            val separator = name.indexOf('_')
-            val length = if (separator < 0) {
-                name.length
-            } else {
-                separator
-            }
-            var semantic = when {
-                name.startsWith("_") -> ATTRIBUTE_CUSTOM
-                length == "POSITION".length && name.startsWith("POSITION") -> ATTRIBUTE_POSITION
-                length == "NORMAL".length && name.startsWith("NORMAL") -> ATTRIBUTE_NORMAL
-                length == "TANGENT".length && name.startsWith("TANGENT") -> ATTRIBUTE_TANGENT
-                length == "TEXCOORD".length && name.startsWith("TEXCOORD") -> ATTRIBUTE_TEXCOORD
-                length == "COLOR".length && name.startsWith("COLOR") -> ATTRIBUTE_COLOR
-                length == "JOINTS".length && name.startsWith("JOINTS") -> ATTRIBUTE_JOINTS
-                length == "WEIGHTS".length && name.startsWith("WEIGHTS") -> ATTRIBUTE_WEIGHTS
-                else -> ATTRIBUTE_INVALID
-            }
-            var set = 0
-            if (semantic in ATTRIBUTE_TEXCOORD..ATTRIBUTE_WEIGHTS) {
-                if (separator < 0 || separator == name.lastIndex) {
-                    semantic = ATTRIBUTE_INVALID
-                } else for (index in separator + 1 until name.length) {
-                    val digit = name[index] - '0'
-                    if (digit !in 0..9 || set > (Int.MAX_VALUE - digit) / 10) {
-                        semantic = ATTRIBUTE_INVALID
-                        break
-                    }
-                    set = set * 10 + digit
+        return lastProperties(
+            Array(json.size(obj)) {
+                val name = requireNotNull(json.string(key))
+                val value = json.field(obj = obj, nameToken = key)
+                key = json.next(key + 1)
+                val separator = name.indexOf('_')
+                val length = if (separator < 0) {
+                    name.length
+                } else {
+                    separator
                 }
-            } else if (semantic in ATTRIBUTE_POSITION..ATTRIBUTE_TANGENT && separator >= 0) {
-                semantic = ATTRIBUTE_INVALID
-            }
-            KAttribute(name, json.int(value).also { assert(it >= 0) }, semantic, set)
-        }) { it.name }
+                var semantic = when {
+                    name.startsWith("_") -> ATTRIBUTE_CUSTOM
+                    length == "POSITION".length && name.startsWith("POSITION") -> ATTRIBUTE_POSITION
+                    length == "NORMAL".length && name.startsWith("NORMAL") -> ATTRIBUTE_NORMAL
+                    length == "TANGENT".length && name.startsWith("TANGENT") -> ATTRIBUTE_TANGENT
+                    length == "TEXCOORD".length && name.startsWith("TEXCOORD") -> ATTRIBUTE_TEXCOORD
+                    length == "COLOR".length && name.startsWith("COLOR") -> ATTRIBUTE_COLOR
+                    length == "JOINTS".length && name.startsWith("JOINTS") -> ATTRIBUTE_JOINTS
+                    length == "WEIGHTS".length && name.startsWith("WEIGHTS") -> ATTRIBUTE_WEIGHTS
+                    else -> ATTRIBUTE_INVALID
+                }
+                var set = 0
+                if (semantic in ATTRIBUTE_TEXCOORD..ATTRIBUTE_WEIGHTS) {
+                    if (separator < 0 || separator == name.lastIndex) {
+                        semantic = ATTRIBUTE_INVALID
+                    } else {
+                        for (index in separator + 1 until name.length) {
+                            val digit = name[index] - '0'
+                            if (digit !in 0..9 || set > (Int.MAX_VALUE - digit) / 10) {
+                                semantic = ATTRIBUTE_INVALID
+                                break
+                            }
+                            set = set * 10 + digit
+                        }
+                    }
+                } else if (semantic in ATTRIBUTE_POSITION..ATTRIBUTE_TANGENT && separator >= 0) {
+                    semantic = ATTRIBUTE_INVALID
+                }
+                KAttribute(
+                    name = name,
+                    accessor = json.int(token = value).also { assert(it >= 0) },
+                    semantic = semantic,
+                    set = set,
+                )
+            },
+        ) { it.name }
     }
 
     private fun primitive(obj: Int): KPrimitive {
-        val dracoToken = extension(obj, GltfName.KHR_draco_mesh_compression)
+        val dracoToken = extension(obj = obj, name = GltfName.KHR_draco_mesh_compression)
         val draco = if (dracoToken < 0) {
             null
         } else {
             KDraco(
-                ref(dracoToken, GltfName.BufferView),
-                attributes(fieldTokenIndex(dracoToken, GltfName.Attributes))
+                bufferView = ref(
+                    obj = dracoToken,
+                    name = GltfName.BufferView,
+                ),
+                attributes = attributes(fieldTokenIndex(obj = dracoToken, name = GltfName.Attributes)),
             )
         }
-        val mappingsToken = fieldTokenIndex(extension(obj, GltfName.KHR_materials_variants), GltfName.Mappings)
+        val mappingsToken = fieldTokenIndex(
+            obj = extension(
+                obj = obj,
+                name = GltfName.KHR_materials_variants,
+            ),
+            name = GltfName.Mappings,
+        )
         val mappings = if (mappingsToken < 0) {
             emptyArray()
         } else {
             val groups = array(mappingsToken) { token ->
-                val material = ref(token, GltfName.Material)
+                val material = ref(obj = token, name = GltfName.Material)
                 val extras = extras(token)
-                val variants = ints(token, GltfName.Variants)
+                val variants = ints(obj = token, name = GltfName.Variants)
                 assert(material >= 0 && variants.isNotEmpty()) { "Invalid material variant mapping" }
-                Array(variants.size) { KMaterialMapping(variants[it], material, extras) }
+                Array(variants.size) { KMaterialMapping(variant = variants[it], material = material, extras = extras) }
             }
             Array(groups.sumOf { it.size }) { index ->
                 var remaining = index
@@ -407,60 +684,117 @@ private class GltfMapping(private val json: GltfJson) {
             }
         }
         return KPrimitive(
-            integer(obj, GltfName.Mode, GLTF_PRIMITIVE_TRIANGLES),
-            ref(obj, GltfName.Indices),
-            ref(obj, GltfName.Material),
-            attributes(fieldTokenIndex(obj, GltfName.Attributes)),
-            array(fieldTokenIndex(obj, GltfName.Targets), ::attributes),
-            draco,
-            mappings,
-            extras(obj),
-            extensions(obj)
+            mode = integer(
+                obj = obj,
+                name = GltfName.Mode,
+                default = GLTF_PRIMITIVE_TRIANGLES,
+            ),
+            indices = ref(
+                obj = obj,
+                name = GltfName.Indices,
+            ),
+            material = ref(
+                obj = obj,
+                name = GltfName.Material,
+            ),
+            attributes = attributes(fieldTokenIndex(obj = obj, name = GltfName.Attributes)),
+            targets = array(
+                token = fieldTokenIndex(
+                    obj = obj,
+                    name = GltfName.Targets,
+                ),
+                read = ::attributes,
+            ),
+            draco = draco,
+            mappings = mappings,
+            extras = extras(obj),
+            extensions = extensions(obj),
         )
     }
 
     private fun mesh(obj: Int): KMesh = KMesh(
-        string(obj, GltfName.Name),
-        array(fieldTokenIndex(obj, GltfName.Primitives), ::primitive),
-        floats(obj, GltfName.Weights),
-        targetNames(obj),
-        extras(obj),
-        extensions(obj)
+        name = string(
+            obj = obj,
+            name = GltfName.Name,
+        ),
+        primitives = array(
+            token = fieldTokenIndex(
+                obj = obj,
+                name = GltfName.Primitives,
+            ),
+            read = ::primitive,
+        ),
+        weights = floats(
+            obj = obj,
+            name = GltfName.Weights,
+        ),
+        targetNames = targetNames(obj),
+        extras = extras(obj),
+        extensions = extensions(obj),
     )
 
     private fun targetNames(obj: Int): Array<String> {
-        val token = fieldTokenIndex(obj, GltfName.Extras)
+        val token = fieldTokenIndex(obj = obj, name = GltfName.Extras)
         return if (json.isObject(token)) {
-            strings(fieldTokenIndex(token, GltfName.TargetNames), true)
+            strings(
+                token = fieldTokenIndex(
+                    obj = token,
+                    name = GltfName.TargetNames,
+                ),
+                allowEmpty = true,
+            )
         } else {
             emptyStrings
         }
     }
 
-    private fun textureView(obj: Int, scaleProperty: GltfName? = null): KTextureView? {
+    private fun textureView(
+        obj: Int,
+        scaleProperty: GltfName? = null,
+    ): KTextureView? {
         if (obj < 0) {
             return null
         }
-        val transformToken = extension(obj, GltfName.KHR_texture_transform)
+        val transformToken = extension(obj = obj, name = GltfName.KHR_texture_transform)
         val transform = if (transformToken < 0) {
             null
         } else {
             KTextureTransform(
-                fixed(transformToken, GltfName.Offset, VEC2_COMPONENTS) { floatArrayOf(0f, 0f) },
-                number(transformToken, GltfName.Rotation),
-                fixed(transformToken, GltfName.Scale, VEC2_COMPONENTS) { floatArrayOf(1f, 1f) },
-                ref(transformToken, GltfName.TexCoord)
+                offset = fixed(
+                    obj = transformToken,
+                    name = GltfName.Offset,
+                    count = VEC2_COMPONENTS,
+                ) { floatArrayOf(0f, 0f) },
+                rotation = number(
+                    obj = transformToken,
+                    name = GltfName.Rotation,
+                ),
+                scale = fixed(
+                    obj = transformToken,
+                    name = GltfName.Scale,
+                    count = VEC2_COMPONENTS,
+                ) { floatArrayOf(1f, 1f) },
+                texCoord = ref(
+                    obj = transformToken,
+                    name = GltfName.TexCoord,
+                ),
             )
         }
         return KTextureView(
-            ref(obj, GltfName.Index),
-            integer(obj, GltfName.TexCoord),
-            if (scaleProperty == null) {
+            texture = ref(
+                obj = obj,
+                name = GltfName.Index,
+            ),
+            texCoord = integer(
+                obj = obj,
+                name = GltfName.TexCoord,
+            ),
+            scale = if (scaleProperty == null) {
                 1f
             } else {
-                number(obj, scaleProperty, 1f)
+                number(obj = obj, name = scaleProperty, default = 1f)
             },
-            transform
+            transform = transform,
         )
     }
 
@@ -468,11 +802,28 @@ private class GltfMapping(private val json: GltfJson) {
         null
     } else {
         KMetallicRoughness(
-            textureView(fieldTokenIndex(obj, GltfName.BaseColorTexture)),
-            textureView(fieldTokenIndex(obj, GltfName.MetallicRoughnessTexture)),
-            fixed(obj, GltfName.BaseColorFactor, VEC4_COMPONENTS) { floatArrayOf(1f, 1f, 1f, 1f) },
-            number(obj, GltfName.MetallicFactor, 1f),
-            number(obj, GltfName.RoughnessFactor, 1f),
+            baseColorTexture = textureView(obj = fieldTokenIndex(obj = obj, name = GltfName.BaseColorTexture)),
+            metallicRoughnessTexture = textureView(
+                obj = fieldTokenIndex(
+                    obj = obj,
+                    name = GltfName.MetallicRoughnessTexture,
+                ),
+            ),
+            baseColorFactor = fixed(
+                obj = obj,
+                name = GltfName.BaseColorFactor,
+                count = VEC4_COMPONENTS,
+            ) { floatArrayOf(1f, 1f, 1f, 1f) },
+            metallicFactor = number(
+                obj = obj,
+                name = GltfName.MetallicFactor,
+                default = 1f,
+            ),
+            roughnessFactor = number(
+                obj = obj,
+                name = GltfName.RoughnessFactor,
+                default = 1f,
+            ),
         )
     }
 
@@ -480,11 +831,28 @@ private class GltfMapping(private val json: GltfJson) {
         null
     } else {
         KSpecularGlossiness(
-            textureView(fieldTokenIndex(obj, GltfName.DiffuseTexture)),
-            textureView(fieldTokenIndex(obj, GltfName.SpecularGlossinessTexture)),
-            fixed(obj, GltfName.DiffuseFactor, VEC4_COMPONENTS) { floatArrayOf(1f, 1f, 1f, 1f) },
-            fixed(obj, GltfName.SpecularFactor, VEC3_COMPONENTS) { floatArrayOf(1f, 1f, 1f) },
-            number(obj, GltfName.GlossinessFactor, 1f),
+            diffuseTexture = textureView(obj = fieldTokenIndex(obj = obj, name = GltfName.DiffuseTexture)),
+            specularGlossinessTexture = textureView(
+                obj = fieldTokenIndex(
+                    obj = obj,
+                    name = GltfName.SpecularGlossinessTexture,
+                ),
+            ),
+            diffuseFactor = fixed(
+                obj = obj,
+                name = GltfName.DiffuseFactor,
+                count = VEC4_COMPONENTS,
+            ) { floatArrayOf(1f, 1f, 1f, 1f) },
+            specularFactor = fixed(
+                obj = obj,
+                name = GltfName.SpecularFactor,
+                count = VEC3_COMPONENTS,
+            ) { floatArrayOf(1f, 1f, 1f) },
+            glossinessFactor = number(
+                obj = obj,
+                name = GltfName.GlossinessFactor,
+                default = 1f,
+            ),
         )
     }
 
@@ -492,42 +860,76 @@ private class GltfMapping(private val json: GltfJson) {
         null
     } else {
         KClearcoat(
-            textureView(fieldTokenIndex(obj, GltfName.ClearcoatTexture)),
-            textureView(fieldTokenIndex(obj, GltfName.ClearcoatRoughnessTexture)),
-            textureView(fieldTokenIndex(obj, GltfName.ClearcoatNormalTexture), GltfName.Scale),
-            number(obj, GltfName.ClearcoatFactor),
-            number(obj, GltfName.ClearcoatRoughnessFactor),
+            texture = textureView(obj = fieldTokenIndex(obj = obj, name = GltfName.ClearcoatTexture)),
+            roughnessTexture = textureView(obj = fieldTokenIndex(obj = obj, name = GltfName.ClearcoatRoughnessTexture)),
+            normalTexture = textureView(
+                obj = fieldTokenIndex(
+                    obj = obj,
+                    name = GltfName.ClearcoatNormalTexture,
+                ),
+                scaleProperty = GltfName.Scale,
+            ),
+            factor = number(
+                obj = obj,
+                name = GltfName.ClearcoatFactor,
+            ),
+            roughnessFactor = number(
+                obj = obj,
+                name = GltfName.ClearcoatRoughnessFactor,
+            ),
         )
     }
 
-    private fun transmission(obj: Int): KTransmission? =
-        if (obj < 0) {
-            null
-        } else {
-            KTransmission(
-                textureView(fieldTokenIndex(obj, GltfName.TransmissionTexture)),
-                number(obj, GltfName.TransmissionFactor)
-            )
-        }
+    private fun transmission(obj: Int): KTransmission? = if (obj < 0) {
+        null
+    } else {
+        KTransmission(
+            texture = textureView(obj = fieldTokenIndex(obj = obj, name = GltfName.TransmissionTexture)),
+            factor = number(
+                obj = obj,
+                name = GltfName.TransmissionFactor,
+            ),
+        )
+    }
 
     private fun specular(obj: Int): KSpecular? = if (obj < 0) {
         null
     } else {
         KSpecular(
-            textureView(fieldTokenIndex(obj, GltfName.SpecularTexture)),
-            textureView(fieldTokenIndex(obj, GltfName.SpecularColorTexture)),
-            number(obj, GltfName.SpecularFactor, 1f),
-            fixed(obj, GltfName.SpecularColorFactor, VEC3_COMPONENTS) { floatArrayOf(1f, 1f, 1f) })
+            texture = textureView(obj = fieldTokenIndex(obj = obj, name = GltfName.SpecularTexture)),
+            colorTexture = textureView(obj = fieldTokenIndex(obj = obj, name = GltfName.SpecularColorTexture)),
+            factor = number(
+                obj = obj,
+                name = GltfName.SpecularFactor,
+                default = 1f,
+            ),
+            colorFactor = fixed(
+                obj = obj,
+                name = GltfName.SpecularColorFactor,
+                count = VEC3_COMPONENTS,
+            ) { floatArrayOf(1f, 1f, 1f) },
+        )
     }
 
     private fun volume(obj: Int): KVolume? = if (obj < 0) {
         null
     } else {
         KVolume(
-            textureView(fieldTokenIndex(obj, GltfName.ThicknessTexture)),
-            number(obj, GltfName.ThicknessFactor),
-            fixed(obj, GltfName.AttenuationColor, VEC3_COMPONENTS) { floatArrayOf(1f, 1f, 1f) },
-            number(obj, GltfName.AttenuationDistance, Float.MAX_VALUE)
+            thicknessTexture = textureView(obj = fieldTokenIndex(obj = obj, name = GltfName.ThicknessTexture)),
+            thicknessFactor = number(
+                obj = obj,
+                name = GltfName.ThicknessFactor,
+            ),
+            attenuationColor = fixed(
+                obj = obj,
+                name = GltfName.AttenuationColor,
+                count = VEC3_COMPONENTS,
+            ) { floatArrayOf(1f, 1f, 1f) },
+            attenuationDistance = number(
+                obj = obj,
+                name = GltfName.AttenuationDistance,
+                default = Float.MAX_VALUE,
+            ),
         )
     }
 
@@ -535,10 +937,17 @@ private class GltfMapping(private val json: GltfJson) {
         null
     } else {
         KSheen(
-            textureView(fieldTokenIndex(obj, GltfName.SheenColorTexture)),
-            fixed(obj, GltfName.SheenColorFactor, VEC3_COMPONENTS) { floatArrayOf(0f, 0f, 0f) },
-            textureView(fieldTokenIndex(obj, GltfName.SheenRoughnessTexture)),
-            number(obj, GltfName.SheenRoughnessFactor)
+            colorTexture = textureView(obj = fieldTokenIndex(obj = obj, name = GltfName.SheenColorTexture)),
+            colorFactor = fixed(
+                obj = obj,
+                name = GltfName.SheenColorFactor,
+                count = VEC3_COMPONENTS,
+            ) { floatArrayOf(0f, 0f, 0f) },
+            roughnessTexture = textureView(obj = fieldTokenIndex(obj = obj, name = GltfName.SheenRoughnessTexture)),
+            roughnessFactor = number(
+                obj = obj,
+                name = GltfName.SheenRoughnessFactor,
+            ),
         )
     }
 
@@ -546,12 +955,32 @@ private class GltfMapping(private val json: GltfJson) {
         null
     } else {
         KIridescence(
-            number(obj, GltfName.IridescenceFactor),
-            textureView(fieldTokenIndex(obj, GltfName.IridescenceTexture)),
-            number(obj, GltfName.IridescenceIor, DEFAULT_IRIDESCENCE_IOR),
-            number(obj, GltfName.IridescenceThicknessMinimum, DEFAULT_IRIDESCENCE_THICKNESS_MIN),
-            number(obj, GltfName.IridescenceThicknessMaximum, DEFAULT_IRIDESCENCE_THICKNESS_MAX),
-            textureView(fieldTokenIndex(obj, GltfName.IridescenceThicknessTexture))
+            factor = number(
+                obj = obj,
+                name = GltfName.IridescenceFactor,
+            ),
+            texture = textureView(obj = fieldTokenIndex(obj = obj, name = GltfName.IridescenceTexture)),
+            ior = number(
+                obj = obj,
+                name = GltfName.IridescenceIor,
+                default = DEFAULT_IRIDESCENCE_IOR,
+            ),
+            thicknessMin = number(
+                obj = obj,
+                name = GltfName.IridescenceThicknessMinimum,
+                default = DEFAULT_IRIDESCENCE_THICKNESS_MIN,
+            ),
+            thicknessMax = number(
+                obj = obj,
+                name = GltfName.IridescenceThicknessMaximum,
+                default = DEFAULT_IRIDESCENCE_THICKNESS_MAX,
+            ),
+            thicknessTexture = textureView(
+                obj = fieldTokenIndex(
+                    obj = obj,
+                    name = GltfName.IridescenceThicknessTexture,
+                ),
+            ),
         )
     }
 
@@ -559,10 +988,22 @@ private class GltfMapping(private val json: GltfJson) {
         null
     } else {
         KDiffuseTransmission(
-            textureView(fieldTokenIndex(obj, GltfName.DiffuseTransmissionTexture)),
-            number(obj, GltfName.DiffuseTransmissionFactor),
-            fixed(obj, GltfName.DiffuseTransmissionColorFactor, VEC3_COMPONENTS) { floatArrayOf(1f, 1f, 1f) },
-            textureView(fieldTokenIndex(obj, GltfName.DiffuseTransmissionColorTexture))
+            texture = textureView(obj = fieldTokenIndex(obj = obj, name = GltfName.DiffuseTransmissionTexture)),
+            factor = number(
+                obj = obj,
+                name = GltfName.DiffuseTransmissionFactor,
+            ),
+            colorFactor = fixed(
+                obj = obj,
+                name = GltfName.DiffuseTransmissionColorFactor,
+                count = VEC3_COMPONENTS,
+            ) { floatArrayOf(1f, 1f, 1f) },
+            colorTexture = textureView(
+                obj = fieldTokenIndex(
+                    obj = obj,
+                    name = GltfName.DiffuseTransmissionColorTexture,
+                ),
+            ),
         )
     }
 
@@ -570,233 +1011,478 @@ private class GltfMapping(private val json: GltfJson) {
         null
     } else {
         KAnisotropy(
-            number(obj, GltfName.AnisotropyStrength),
-            number(obj, GltfName.AnisotropyRotation),
-            textureView(fieldTokenIndex(obj, GltfName.AnisotropyTexture))
+            strength = number(
+                obj = obj,
+                name = GltfName.AnisotropyStrength,
+            ),
+            rotation = number(
+                obj = obj,
+                name = GltfName.AnisotropyRotation,
+            ),
+            texture = textureView(obj = fieldTokenIndex(obj = obj, name = GltfName.AnisotropyTexture)),
         )
     }
 
     private fun material(obj: Int): KMaterial {
-        val alpha = fieldTokenIndex(obj, GltfName.AlphaMode)
+        val alpha = fieldTokenIndex(obj = obj, name = GltfName.AlphaMode)
         assert(
-            alpha < 0 || json.matches(alpha, "OPAQUE") || json.matches(alpha, "MASK") || json.matches(
-                alpha,
-                "BLEND"
-            )
+            alpha < 0 ||
+                json.matches(token = alpha, text = "OPAQUE") ||
+                json.matches(token = alpha, text = "MASK") ||
+                json.matches(token = alpha, text = "BLEND"),
         ) { "Invalid alphaMode" }
         return KMaterial(
-            string(obj, GltfName.Name),
-            metallicRoughness(fieldTokenIndex(obj, GltfName.PbrMetallicRoughness)),
-            specularGlossiness(extension(obj, GltfName.KHR_materials_pbrSpecularGlossiness)),
-            textureView(fieldTokenIndex(obj, GltfName.NormalTexture), GltfName.Scale),
-            textureView(fieldTokenIndex(obj, GltfName.OcclusionTexture), GltfName.Strength),
-            textureView(fieldTokenIndex(obj, GltfName.EmissiveTexture)),
-            fixed(obj, GltfName.EmissiveFactor, VEC3_COMPONENTS) { floatArrayOf(0f, 0f, 0f) },
-            when {
-                json.matches(alpha, "MASK") -> ALPHA_MASK
-                json.matches(alpha, "BLEND") -> ALPHA_BLEND
+            name = string(
+                obj = obj,
+                name = GltfName.Name,
+            ),
+            metallicRoughness = metallicRoughness(fieldTokenIndex(obj = obj, name = GltfName.PbrMetallicRoughness)),
+            specularGlossiness = specularGlossiness(
+                extension(
+                    obj = obj,
+                    name = GltfName.KHR_materials_pbrSpecularGlossiness,
+                ),
+            ),
+            normalTexture = textureView(
+                obj = fieldTokenIndex(
+                    obj = obj,
+                    name = GltfName.NormalTexture,
+                ),
+                scaleProperty = GltfName.Scale,
+            ),
+            occlusionTexture = textureView(
+                obj = fieldTokenIndex(
+                    obj = obj,
+                    name = GltfName.OcclusionTexture,
+                ),
+                scaleProperty = GltfName.Strength,
+            ),
+            emissiveTexture = textureView(obj = fieldTokenIndex(obj = obj, name = GltfName.EmissiveTexture)),
+            emissiveFactor = fixed(
+                obj = obj,
+                name = GltfName.EmissiveFactor,
+                count = VEC3_COMPONENTS,
+            ) { floatArrayOf(0f, 0f, 0f) },
+            alphaMode = when {
+                json.matches(token = alpha, text = "MASK") -> ALPHA_MASK
+                json.matches(token = alpha, text = "BLEND") -> ALPHA_BLEND
                 else -> ALPHA_OPAQUE
             },
-            number(obj, GltfName.AlphaCutoff, DEFAULT_ALPHA_CUTOFF),
-            boolean(obj, GltfName.DoubleSided),
-            extension(obj, GltfName.KHR_materials_unlit) >= 0,
-            clearcoat(extension(obj, GltfName.KHR_materials_clearcoat)),
-            transmission(extension(obj, GltfName.KHR_materials_transmission)),
-            extensionFloat(obj, GltfName.KHR_materials_ior, GltfName.Ior, DEFAULT_IOR),
-            specular(extension(obj, GltfName.KHR_materials_specular)),
-            volume(extension(obj, GltfName.KHR_materials_volume)),
-            sheen(extension(obj, GltfName.KHR_materials_sheen)),
-            extensionFloat(obj, GltfName.KHR_materials_emissive_strength, GltfName.EmissiveStrength, 1f),
-            iridescence(extension(obj, GltfName.KHR_materials_iridescence)),
-            diffuseTransmission(extension(obj, GltfName.KHR_materials_diffuse_transmission)),
-            anisotropy(extension(obj, GltfName.KHR_materials_anisotropy)),
-            extensionFloat(obj, GltfName.KHR_materials_dispersion, GltfName.Dispersion, 0f),
-            extras(obj),
-            extensions(obj),
+            alphaCutoff = number(
+                obj = obj,
+                name = GltfName.AlphaCutoff,
+                default = DEFAULT_ALPHA_CUTOFF,
+            ),
+            doubleSided = boolean(
+                obj = obj,
+                name = GltfName.DoubleSided,
+            ),
+            unlit = extension(
+                obj = obj,
+                name = GltfName.KHR_materials_unlit,
+            ) >= 0,
+            clearcoat = clearcoat(extension(obj = obj, name = GltfName.KHR_materials_clearcoat)),
+            transmission = transmission(extension(obj = obj, name = GltfName.KHR_materials_transmission)),
+            ior = extensionFloat(
+                obj = obj,
+                extension = GltfName.KHR_materials_ior,
+                name = GltfName.Ior,
+                default = DEFAULT_IOR,
+            ),
+            specular = specular(extension(obj = obj, name = GltfName.KHR_materials_specular)),
+            volume = volume(extension(obj = obj, name = GltfName.KHR_materials_volume)),
+            sheen = sheen(extension(obj = obj, name = GltfName.KHR_materials_sheen)),
+            emissiveStrength = extensionFloat(
+                obj = obj,
+                extension = GltfName.KHR_materials_emissive_strength,
+                name = GltfName.EmissiveStrength,
+                default = 1f,
+            ),
+            iridescence = iridescence(extension(obj = obj, name = GltfName.KHR_materials_iridescence)),
+            diffuseTransmission = diffuseTransmission(
+                extension(
+                    obj = obj,
+                    name = GltfName.KHR_materials_diffuse_transmission,
+                ),
+            ),
+            anisotropy = anisotropy(extension(obj = obj, name = GltfName.KHR_materials_anisotropy)),
+            dispersion = extensionFloat(
+                obj = obj,
+                extension = GltfName.KHR_materials_dispersion,
+                name = GltfName.Dispersion,
+                default = 0f,
+            ),
+            extras = extras(obj),
+            extensions = extensions(obj),
         )
     }
 
-    private fun image(obj: Int): KImage =
-        KImage(
-            string(obj, GltfName.Name),
-            string(obj, GltfName.Uri),
-            ref(obj, GltfName.BufferView),
-            string(obj, GltfName.MimeType),
-            extras(obj),
-            extensions(obj)
-        )
+    private fun image(obj: Int): KImage = KImage(
+        name = string(
+            obj = obj,
+            name = GltfName.Name,
+        ),
+        uri = string(
+            obj = obj,
+            name = GltfName.Uri,
+        ),
+        bufferView = ref(
+            obj = obj,
+            name = GltfName.BufferView,
+        ),
+        mimeType = string(
+            obj = obj,
+            name = GltfName.MimeType,
+        ),
+        extras = extras(obj),
+        extensions = extensions(obj),
+    )
 
     private fun sampler(obj: Int): KSampler = KSampler(
-        string(obj, GltfName.Name),
-        integer(obj, GltfName.MagFilter).also { assert(fieldTokenIndex(obj, GltfName.MagFilter) < 0 || it > 0) },
-        integer(obj, GltfName.MinFilter).also { assert(fieldTokenIndex(obj, GltfName.MinFilter) < 0 || it > 0) },
-        integer(obj, GltfName.WrapS, TEXTURE_WRAP_REPEAT),
-        integer(obj, GltfName.WrapT, TEXTURE_WRAP_REPEAT),
-        extras(obj),
-        extensions(obj)
+        name = string(
+            obj = obj,
+            name = GltfName.Name,
+        ),
+        magFilter = integer(
+            obj = obj,
+            name = GltfName.MagFilter,
+        ).also { assert(fieldTokenIndex(obj = obj, name = GltfName.MagFilter) < 0 || it > 0) },
+        minFilter = integer(
+            obj = obj,
+            name = GltfName.MinFilter,
+        ).also { assert(fieldTokenIndex(obj = obj, name = GltfName.MinFilter) < 0 || it > 0) },
+        wrapS = integer(
+            obj = obj,
+            name = GltfName.WrapS,
+            default = TEXTURE_WRAP_REPEAT,
+        ),
+        wrapT = integer(
+            obj = obj,
+            name = GltfName.WrapT,
+            default = TEXTURE_WRAP_REPEAT,
+        ),
+        extras = extras(obj),
+        extensions = extensions(obj),
     )
 
     private fun texture(obj: Int): KTexture = KTexture(
-        string(obj, GltfName.Name),
-        ref(obj, GltfName.Source),
-        ref(obj, GltfName.Sampler),
-        extensionRef(obj, GltfName.KHR_texture_basisu, GltfName.Source),
-        extensionRef(obj, GltfName.EXT_texture_webp, GltfName.Source),
-        extras(obj),
-        extensions(obj)
+        name = string(
+            obj = obj,
+            name = GltfName.Name,
+        ),
+        image = ref(
+            obj = obj,
+            name = GltfName.Source,
+        ),
+        sampler = ref(
+            obj = obj,
+            name = GltfName.Sampler,
+        ),
+        basisuImage = extensionRef(
+            obj = obj,
+            name = GltfName.KHR_texture_basisu,
+            field = GltfName.Source,
+        ),
+        webpImage = extensionRef(
+            obj = obj,
+            name = GltfName.EXT_texture_webp,
+            field = GltfName.Source,
+        ),
+        extras = extras(obj),
+        extensions = extensions(obj),
     )
 
     private fun node(obj: Int): KNode {
-        val translation = fieldTokenIndex(obj, GltfName.Translation)
-        val rotation = fieldTokenIndex(obj, GltfName.Rotation)
-        val scale = fieldTokenIndex(obj, GltfName.Scale)
-        val matrix = fieldTokenIndex(obj, GltfName.Matrix)
+        val translation = fieldTokenIndex(obj = obj, name = GltfName.Translation)
+        val rotation = fieldTokenIndex(obj = obj, name = GltfName.Rotation)
+        val scale = fieldTokenIndex(obj = obj, name = GltfName.Scale)
+        val matrix = fieldTokenIndex(obj = obj, name = GltfName.Matrix)
         return KNode(
-            string(obj, GltfName.Name),
-            GLTF_MISSING_INDEX,
-            ints(obj, GltfName.Children),
-            ref(obj, GltfName.Mesh),
-            ref(obj, GltfName.Skin),
-            ref(obj, GltfName.Camera),
-            extensionRef(obj, GltfName.KHR_lights_punctual, GltfName.Light),
-            floats(obj, GltfName.Weights),
-            if (translation < 0) {
+            name = string(
+                obj = obj,
+                name = GltfName.Name,
+            ),
+            parent = GLTF_MISSING_INDEX,
+            children = ints(
+                obj = obj,
+                name = GltfName.Children,
+            ),
+            mesh = ref(
+                obj = obj,
+                name = GltfName.Mesh,
+            ),
+            skin = ref(
+                obj = obj,
+                name = GltfName.Skin,
+            ),
+            camera = ref(
+                obj = obj,
+                name = GltfName.Camera,
+            ),
+            light = extensionRef(
+                obj = obj,
+                name = GltfName.KHR_lights_punctual,
+                field = GltfName.Light,
+            ),
+            weights = floats(
+                obj = obj,
+                name = GltfName.Weights,
+            ),
+            translation = if (translation < 0) {
                 null
             } else {
                 fixedToken(
-                    translation,
-                    GltfName.Translation,
-                    VEC3_COMPONENTS
+                    token = translation,
+                    name = GltfName.Translation,
+                    count = VEC3_COMPONENTS,
                 ) { defaultTranslation }
             },
-            if (rotation < 0) {
+            rotation = if (rotation < 0) {
                 null
             } else {
-                fixedToken(rotation, GltfName.Rotation, VEC4_COMPONENTS) { defaultRotation }
+                fixedToken(token = rotation, name = GltfName.Rotation, count = VEC4_COMPONENTS) { defaultRotation }
             },
-            if (scale < 0) {
+            scale = if (scale < 0) {
                 null
             } else {
-                fixedToken(scale, GltfName.Scale, VEC3_COMPONENTS) { defaultScale }
+                fixedToken(token = scale, name = GltfName.Scale, count = VEC3_COMPONENTS) { defaultScale }
             },
-            if (matrix < 0) {
+            matrix = if (matrix < 0) {
                 null
             } else {
-                fixedToken(matrix, GltfName.Matrix, MAT4_COMPONENTS) { defaultMatrix }
+                fixedToken(token = matrix, name = GltfName.Matrix, count = MAT4_COMPONENTS) { defaultMatrix }
             },
-            matrix >= 0,
-            translation >= 0,
-            rotation >= 0,
-            scale >= 0,
-            attributes(fieldTokenIndex(extension(obj, GltfName.EXT_mesh_gpu_instancing), GltfName.Attributes)),
-            extras(obj),
-            extensions(obj),
+            hasMatrix = matrix >= 0,
+            hasTranslation = translation >= 0,
+            hasRotation = rotation >= 0,
+            hasScale = scale >= 0,
+            instancing = attributes(
+                fieldTokenIndex(
+                    obj = extension(
+                        obj = obj,
+                        name = GltfName.EXT_mesh_gpu_instancing,
+                    ),
+                    name = GltfName.Attributes,
+                ),
+            ),
+            extras = extras(obj),
+            extensions = extensions(obj),
         )
     }
 
-    private fun scene(obj: Int): KScene =
-        KScene(string(obj, GltfName.Name), ints(obj, GltfName.Nodes), extras(obj), extensions(obj))
+    private fun scene(obj: Int): KScene = KScene(
+        name = string(
+            obj = obj,
+            name = GltfName.Name,
+        ),
+        nodes = ints(
+            obj = obj,
+            name = GltfName.Nodes,
+        ),
+        extras = extras(obj),
+        extensions = extensions(obj),
+    )
 
     private fun skin(obj: Int): KSkin = KSkin(
-        string(obj, GltfName.Name),
-        ints(obj, GltfName.Joints),
-        ref(obj, GltfName.Skeleton),
-        ref(obj, GltfName.InverseBindMatrices),
-        extras(obj),
-        extensions(obj)
+        name = string(
+            obj = obj,
+            name = GltfName.Name,
+        ),
+        joints = ints(
+            obj = obj,
+            name = GltfName.Joints,
+        ),
+        skeleton = ref(
+            obj = obj,
+            name = GltfName.Skeleton,
+        ),
+        inverseBindMatrices = ref(
+            obj = obj,
+            name = GltfName.InverseBindMatrices,
+        ),
+        extras = extras(obj),
+        extensions = extensions(obj),
     )
 
     private fun animationSampler(obj: Int): KAnimationSampler {
-        val interpolation = fieldTokenIndex(obj, GltfName.Interpolation)
+        val interpolation = fieldTokenIndex(obj = obj, name = GltfName.Interpolation)
         assert(
-            interpolation < 0 || json.matches(interpolation, "LINEAR") || json.matches(
-                interpolation,
-                "STEP"
-            ) || json.matches(interpolation, "CUBICSPLINE")
+            interpolation < 0 ||
+                json.matches(token = interpolation, text = "LINEAR") ||
+                json.matches(token = interpolation, text = "STEP") ||
+                json.matches(token = interpolation, text = "CUBICSPLINE"),
         ) { "Invalid animation interpolation" }
         return KAnimationSampler(
-            ref(obj, GltfName.Input), ref(obj, GltfName.Output), when {
-                json.matches(interpolation, "STEP") -> GLTF_INTERPOLATION_STEP
-                json.matches(interpolation, "CUBICSPLINE") -> GLTF_INTERPOLATION_CUBIC_SPLINE
+            input = ref(
+                obj = obj,
+                name = GltfName.Input,
+            ),
+            output = ref(
+                obj = obj,
+                name = GltfName.Output,
+            ),
+            interpolation = when {
+                json.matches(token = interpolation, text = "STEP") -> GLTF_INTERPOLATION_STEP
+                json.matches(token = interpolation, text = "CUBICSPLINE") -> GLTF_INTERPOLATION_CUBIC_SPLINE
                 else -> GLTF_INTERPOLATION_LINEAR
-            }, extras(obj), extensions(obj)
+            },
+            extras = extras(obj),
+            extensions = extensions(obj),
         )
     }
 
     private fun animationChannel(obj: Int): KAnimationChannel {
-        val target = required(obj, GltfName.Target)
-        val path = fieldTokenIndex(target, GltfName.Path)
+        val target = required(obj = obj, name = GltfName.Target)
+        val path = fieldTokenIndex(obj = target, name = GltfName.Path)
         return KAnimationChannel(
-            ref(obj, GltfName.Sampler), ref(target, GltfName.Node), when {
-                json.matches(path, GltfName.Translation) -> GLTF_PATH_TRANSLATION
-                json.matches(path, GltfName.Rotation) -> GLTF_PATH_ROTATION
-                json.matches(path, GltfName.Scale) -> GLTF_PATH_SCALE
-                json.matches(path, GltfName.Weights) -> GLTF_PATH_WEIGHTS
+            sampler = ref(
+                obj = obj,
+                name = GltfName.Sampler,
+            ),
+            targetNode = ref(
+                obj = target,
+                name = GltfName.Node,
+            ),
+            targetPath = when {
+                json.matches(token = path, name = GltfName.Translation) -> GLTF_PATH_TRANSLATION
+                json.matches(token = path, name = GltfName.Rotation) -> GLTF_PATH_ROTATION
+                json.matches(token = path, name = GltfName.Scale) -> GLTF_PATH_SCALE
+                json.matches(token = path, name = GltfName.Weights) -> GLTF_PATH_WEIGHTS
                 else -> GLTF_PATH_INVALID
-            }, extras(obj), extensions(obj)
+            },
+            extras = extras(obj),
+            extensions = extensions(obj),
         )
     }
 
     private fun animation(obj: Int): KAnimation = KAnimation(
-        string(obj, GltfName.Name),
-        array(fieldTokenIndex(obj, GltfName.Samplers), ::animationSampler),
-        array(fieldTokenIndex(obj, GltfName.Channels), ::animationChannel),
-        extras(obj),
-        extensions(obj)
+        name = string(
+            obj = obj,
+            name = GltfName.Name,
+        ),
+        samplers = array(
+            token = fieldTokenIndex(
+                obj = obj,
+                name = GltfName.Samplers,
+            ),
+            read = ::animationSampler,
+        ),
+        channels = array(
+            token = fieldTokenIndex(
+                obj = obj,
+                name = GltfName.Channels,
+            ),
+            read = ::animationChannel,
+        ),
+        extras = extras(obj),
+        extensions = extensions(obj),
     )
 
     private fun camera(obj: Int): KCamera {
-        val type = fieldTokenIndex(obj, GltfName.Type)
-        val perspectiveToken = fieldTokenIndex(obj, GltfName.Perspective)
-        val orthographicToken = fieldTokenIndex(obj, GltfName.Orthographic)
+        val type = fieldTokenIndex(obj = obj, name = GltfName.Type)
+        val perspectiveToken = fieldTokenIndex(obj = obj, name = GltfName.Perspective)
+        val orthographicToken = fieldTokenIndex(obj = obj, name = GltfName.Orthographic)
         val perspective = if (perspectiveToken < 0) {
             null
         } else {
             KPerspective(
-                optionalFloat(perspectiveToken, GltfName.AspectRatio),
-                requiredNumber(perspectiveToken, GltfName.Yfov),
-                optionalFloat(perspectiveToken, GltfName.Zfar),
-                requiredNumber(perspectiveToken, GltfName.Znear),
-                extras(perspectiveToken)
+                aspectRatio = optionalFloat(
+                    obj = perspectiveToken,
+                    name = GltfName.AspectRatio,
+                ),
+                yfov = requiredNumber(
+                    obj = perspectiveToken,
+                    name = GltfName.Yfov,
+                ),
+                zfar = optionalFloat(
+                    obj = perspectiveToken,
+                    name = GltfName.Zfar,
+                ),
+                znear = requiredNumber(
+                    obj = perspectiveToken,
+                    name = GltfName.Znear,
+                ),
+                extras = extras(perspectiveToken),
             )
         }
         val orthographic = if (orthographicToken < 0) {
             null
         } else {
             KOrthographic(
-                requiredNumber(orthographicToken, GltfName.Xmag),
-                requiredNumber(orthographicToken, GltfName.Ymag),
-                requiredNumber(orthographicToken, GltfName.Zfar),
-                requiredNumber(orthographicToken, GltfName.Znear),
-                extras(orthographicToken)
+                xmag = requiredNumber(
+                    obj = orthographicToken,
+                    name = GltfName.Xmag,
+                ),
+                ymag = requiredNumber(
+                    obj = orthographicToken,
+                    name = GltfName.Ymag,
+                ),
+                zfar = requiredNumber(
+                    obj = orthographicToken,
+                    name = GltfName.Zfar,
+                ),
+                znear = requiredNumber(
+                    obj = orthographicToken,
+                    name = GltfName.Znear,
+                ),
+                extras = extras(orthographicToken),
             )
         }
         return KCamera(
-            string(obj, GltfName.Name), when {
-                json.matches(type, "perspective") -> CAMERA_PERSPECTIVE
-                json.matches(type, "orthographic") -> CAMERA_ORTHOGRAPHIC
+            name = string(
+                obj = obj,
+                name = GltfName.Name,
+            ),
+            type = when {
+                json.matches(token = type, text = "perspective") -> CAMERA_PERSPECTIVE
+                json.matches(token = type, text = "orthographic") -> CAMERA_ORTHOGRAPHIC
                 else -> CAMERA_INVALID
-            }, perspective, orthographic, extras(obj), extensions(obj)
+            },
+            perspective = perspective,
+            orthographic = orthographic,
+            extras = extras(obj),
+            extensions = extensions(obj),
         )
     }
 
     private fun light(obj: Int): KLight {
-        val spot = fieldTokenIndex(obj, GltfName.Spot)
-        val type = fieldTokenIndex(obj, GltfName.Type)
+        val spot = fieldTokenIndex(obj = obj, name = GltfName.Spot)
+        val type = fieldTokenIndex(obj = obj, name = GltfName.Type)
         return KLight(
-            string(obj, GltfName.Name),
-            fixed(obj, GltfName.Color, VEC3_COMPONENTS) { floatArrayOf(1f, 1f, 1f) },
-            number(obj, GltfName.Intensity, 1f),
-            when {
-                json.matches(type, "directional") -> LIGHT_DIRECTIONAL
-                json.matches(type, "point") -> LIGHT_POINT
-                json.matches(type, "spot") -> LIGHT_SPOT
+            name = string(
+                obj = obj,
+                name = GltfName.Name,
+            ),
+            color = fixed(
+                obj = obj,
+                name = GltfName.Color,
+                count = VEC3_COMPONENTS,
+            ) { floatArrayOf(1f, 1f, 1f) },
+            intensity = number(
+                obj = obj,
+                name = GltfName.Intensity,
+                default = 1f,
+            ),
+            type = when {
+                json.matches(token = type, text = "directional") -> LIGHT_DIRECTIONAL
+                json.matches(token = type, text = "point") -> LIGHT_POINT
+                json.matches(token = type, text = "spot") -> LIGHT_SPOT
                 else -> LIGHT_INVALID
             },
-            number(obj, GltfName.Range).also { assert(fieldTokenIndex(obj, GltfName.Range) < 0 || it > 0) },
-            number(spot, GltfName.InnerConeAngle),
-            number(spot, GltfName.OuterConeAngle, DEFAULT_SPOT_OUTER_CONE_ANGLE),
-            extras(obj)
+            range = number(
+                obj = obj,
+                name = GltfName.Range,
+            ).also { assert(fieldTokenIndex(obj = obj, name = GltfName.Range) < 0 || it > 0) },
+            innerConeAngle = number(
+                obj = spot,
+                name = GltfName.InnerConeAngle,
+            ),
+            outerConeAngle = number(
+                obj = spot,
+                name = GltfName.OuterConeAngle,
+                default = DEFAULT_SPOT_OUTER_CONE_ANGLE,
+            ),
+            extras = extras(obj),
         )
     }
 }

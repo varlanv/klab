@@ -12,7 +12,8 @@ class GltfJsonSpec : BaseSpec({
         // given strings around the eight-byte scanning boundary
         for (length in listOf(0, 1, 7, 8, 9, 15, 16, 17, 31, 32, 33)) {
             val expected = "a".repeat(length)
-            val source = """{"name":"$expected","enabled":true,"disabled":false,"nothing":null,"numbers":[1,2]}""".toByteArray()
+            val source = """{"name":"$expected","enabled":true,"disabled":false,"nothing":null,"numbers":[1,2]}"""
+                .toByteArray()
             val subject = GltfJson()
 
             // when parsing the entire object
@@ -20,8 +21,14 @@ class GltfJsonSpec : BaseSpec({
 
             // then finish the string and continue consuming each subsequent value
             subject.string(subject.field(obj = 0, name = "name")) shouldBe expected
-            subject.bool(subject.field(obj = 0, name = "enabled")) shouldBe true
-            subject.bool(subject.field(obj = 0, name = "disabled"), default = true) shouldBe false
+            subject.bool(token = subject.field(obj = 0, name = "enabled")) shouldBe true
+            subject.bool(
+                token = subject.field(
+                    obj = 0,
+                    name = "disabled",
+                ),
+                default = true,
+            ) shouldBe false
             subject.raw(subject.field(obj = 0, name = "nothing")) shouldBe "null"
             subject.ints(subject.field(obj = 0, name = "numbers")).toList() shouldBe listOf(1, 2)
         }
@@ -44,13 +51,28 @@ class GltfJsonSpec : BaseSpec({
         // given decimal values around representational boundaries
         val subject = GltfJson()
         val values = listOf(
-            "0", "-0", "0.0", "-0.0", "1", "-1", "1.23456789", "16777217",
-            "3.4028234663852886e38", "1.401298464324817e-45",
-            "1e-60", "-1e-60", "1e60", "-1e60",
+            "0",
+            "-0",
+            "0.0",
+            "-0.0",
+            "1",
+            "-1",
+            "1.23456789",
+            "16777217",
+            "3.4028234663852886e38",
+            "1.401298464324817e-45",
+            "1e-60",
+            "-1e-60",
+            "1e60",
+            "-1e60",
             "0.100000001490116119384765625",
             "123456789012345678901234567890.01234567890123456789",
-            "1e2147483648", "-1e2147483648", "1e-2147483648", "-1e-2147483648",
-            "0e99999999999999999999999999", "-0e-99999999999999999999999999",
+            "1e2147483648",
+            "-1e2147483648",
+            "1e-2147483648",
+            "-1e-2147483648",
+            "0e99999999999999999999999999",
+            "-0e-99999999999999999999999999",
             "0.0000000000000000000000000000000000000000000000000000000000000000001",
         )
 
@@ -85,19 +107,19 @@ class GltfJsonSpec : BaseSpec({
 
         // expect every finite conversion and overflow decision to match the JDK
         repeat(50_000) {
-            val count = random.nextInt(from = 1, until = 46)
+            val count = random.nextInt(1, 46)
             val digits = buildString {
-                append(random.nextInt(from = 1, until = 10))
+                append(random.nextInt(1, 10))
                 repeat(count - 1) { append(random.nextInt(10)) }
             }
-            val split = random.nextInt(from = 1, until = count + 1)
+            val split = random.nextInt(1, count + 1)
             val decimal = if (split == count) {
                 digits
             } else {
                 digits.take(split) + "." + digits.drop(split)
             }
             val sign = if (random.nextBoolean()) { "-" } else { "" }
-            val exponent = random.nextInt(from = -70, until = 50)
+            val exponent = random.nextInt(-70, 50)
             assertFloat(subject = subject, value = "$sign${decimal}e$exponent")
         }
     }
@@ -113,7 +135,11 @@ class GltfJsonSpec : BaseSpec({
             val lower = Float.fromBits(random.nextInt() and 0x7f7ffffe)
             val upper = Math.nextUp(lower)
             val midpoint = BigDecimal(lower.toDouble()).add(BigDecimal(upper.toDouble())).divide(BigDecimal(2))
-            for (value in listOf(midpoint, midpoint.subtract(epsilon), midpoint.add(epsilon))) {
+            for (value in listOf(
+                midpoint,
+                midpoint.subtract(epsilon),
+                midpoint.add(epsilon),
+            )) {
                 assertFloat(subject = subject, value = value.toPlainString())
                 assertFloat(subject = subject, value = value.negate().toPlainString())
             }
@@ -127,8 +153,8 @@ private fun assertFloat(subject: GltfJson, value: String) {
     val token = subject.field(obj = 0, name = "value")
     val expected = java.lang.Float.parseFloat(value)
     if (expected.isFinite()) {
-        (value to subject.float(token).toRawBits()) shouldBe (value to expected.toRawBits())
+        (value to subject.float(token = token).toRawBits()) shouldBe (value to expected.toRawBits())
     } else {
-        shouldThrow<AssertionError> { subject.float(token) }
+        shouldThrow<AssertionError> { subject.float(token = token) }
     }
 }

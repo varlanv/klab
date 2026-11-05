@@ -12,19 +12,19 @@ private const val RECTANGLE_WIRE = 3
 private const val VERTEX_FLOATS = 7
 private const val VERTEX_BYTES = VERTEX_FLOATS * 4
 
-private val cubeFaces: Ints = intArrayOf(
-    0, 4, 6, 2, 1, 3, 7, 5,
-    0, 1, 5, 4, 2, 6, 7, 3,
-    0, 2, 3, 1, 4, 5, 7, 6,
-)
-private val cubeEdges: Ints = intArrayOf(
-    0, 1, 2, 3, 4, 5, 6, 7,
-    0, 2, 1, 3, 4, 6, 5, 7,
-    0, 4, 1, 5, 2, 6, 3, 7,
-)
+private val cubeFaces: Ints = intArrayOf(0, 4, 6, 2, 1, 3, 7, 5, 0, 1, 5, 4, 2, 6, 7, 3, 0, 2, 3, 1, 4, 5, 7, 6)
+private val cubeEdges: Ints = intArrayOf(0, 1, 2, 3, 4, 5, 6, 7, 0, 2, 1, 3, 4, 6, 5, 7, 0, 4, 1, 5, 2, 6, 3, 7)
 private val primitiveAttributes = listOf(
-    Sdl3GpuVertexAttribute(location = 0, offset = 0, format = Sdl3GpuVertexFormat.Float3),
-    Sdl3GpuVertexAttribute(location = 1, offset = 12, format = Sdl3GpuVertexFormat.Float4),
+    Sdl3GpuVertexAttribute(
+        location = 0,
+        offset = 0,
+        format = Sdl3GpuVertexFormat.Float3,
+    ),
+    Sdl3GpuVertexAttribute(
+        location = 1,
+        offset = 12,
+        format = Sdl3GpuVertexFormat.Float4,
+    ),
 )
 
 internal class PrimitiveRenderer private constructor(
@@ -35,7 +35,6 @@ internal class PrimitiveRenderer private constructor(
     private val rectangleWire: Sdl3GpuGraphicsPipeline,
     private val camera: Camera3D,
 ) : AutoCloseable {
-
     private val mesh = MeshBuffers(device)
     private var vertices: MutFloats = stableEmptyMutFloats
     private var indices: MutInts = stableEmptyMutInts
@@ -67,13 +66,22 @@ internal class PrimitiveRenderer private constructor(
         checkCanEnqueue()
         require(x.isFinite() && y.isFinite())
         require(width.isFinite() && height.isFinite() && width > 0f && height > 0f)
-        require(red >= 0f && red <= 1f && green >= 0f && green <= 1f)
-        require(blue >= 0f && blue <= 1f && alpha >= 0f && alpha <= 1f)
+        require(red in 0f..1f && green >= 0f && green <= 1f)
+        require(blue in 0f..1f && alpha >= 0f && alpha <= 1f)
         val right = x + width
         val bottom = y + height
         require(right.isFinite() && bottom.isFinite())
-        if (alpha == 0f) return
-        reserve(addVertices = 4, addIndices = if (fill) 6 else 8)
+        if (alpha == 0f) {
+            return
+        }
+        reserve(
+            addVertices = 4,
+            addIndices = if (fill) {
+                6
+            } else {
+                8
+            },
+        )
         val base = vertexCount
         val firstIndex = indexCount
         vertex(x = x, y = y, z = 0f, red = red, green = green, blue = blue, alpha = alpha)
@@ -88,7 +96,14 @@ internal class PrimitiveRenderer private constructor(
                 indices[indexCount++] = base + (corner + 1) % 4
             }
         }
-        record(kind = if (fill) RECTANGLE_FILL else RECTANGLE_WIRE, firstIndex = firstIndex)
+        record(
+            kind = if (fill) {
+                RECTANGLE_FILL
+            } else {
+                RECTANGLE_WIRE
+            },
+            firstIndex = firstIndex,
+        )
         hasRectangles = true
     }
 
@@ -109,8 +124,8 @@ internal class PrimitiveRenderer private constructor(
         require(x.isFinite() && y.isFinite() && z.isFinite())
         require(width.isFinite() && height.isFinite() && length.isFinite())
         require(width > 0f && height > 0f && length > 0f)
-        require(red >= 0f && red <= 1f && green >= 0f && green <= 1f)
-        require(blue >= 0f && blue <= 1f && alpha >= 0f && alpha <= 1f)
+        require(red in 0f..1f && green >= 0f && green <= 1f)
+        require(blue in 0f..1f && alpha >= 0f && alpha <= 1f)
         val minX = x - width * 0.5f
         val maxX = x + width * 0.5f
         val minY = y - height * 0.5f
@@ -119,8 +134,21 @@ internal class PrimitiveRenderer private constructor(
         val maxZ = z + length * 0.5f
         require(minX.isFinite() && maxX.isFinite() && minY.isFinite() && maxY.isFinite())
         require(minZ.isFinite() && maxZ.isFinite())
-        if (alpha == 0f) return
-        reserve(addVertices = if (fill) 24 else 8, addIndices = if (fill) 36 else 24)
+        if (alpha == 0f) {
+            return
+        }
+        reserve(
+            addVertices = if (fill) {
+                24
+            } else {
+                8
+            },
+            addIndices = if (fill) {
+                36
+            } else {
+                24
+            },
+        )
         val firstIndex = indexCount
         if (fill) {
             for (face in 0..5) {
@@ -133,9 +161,21 @@ internal class PrimitiveRenderer private constructor(
                 for (index in 0..3) {
                     val corner = cubeFaces[face * 4 + index]
                     vertex(
-                        x = if (corner and 1 == 0) minX else maxX,
-                        y = if (corner and 2 == 0) minY else maxY,
-                        z = if (corner and 4 == 0) minZ else maxZ,
+                        x = if (corner and 1 == 0) {
+                            minX
+                        } else {
+                            maxX
+                        },
+                        y = if (corner and 2 == 0) {
+                            minY
+                        } else {
+                            maxY
+                        },
+                        z = if (corner and 4 == 0) {
+                            minZ
+                        } else {
+                            maxZ
+                        },
                         red = red * brightness,
                         green = green * brightness,
                         blue = blue * brightness,
@@ -148,15 +188,37 @@ internal class PrimitiveRenderer private constructor(
             val base = vertexCount
             for (corner in 0..7) {
                 vertex(
-                    x = if (corner and 1 == 0) minX else maxX,
-                    y = if (corner and 2 == 0) minY else maxY,
-                    z = if (corner and 4 == 0) minZ else maxZ,
-                    red = red, green = green, blue = blue, alpha = alpha,
+                    x = if (corner and 1 == 0) {
+                        minX
+                    } else {
+                        maxX
+                    },
+                    y = if (corner and 2 == 0) {
+                        minY
+                    } else {
+                        maxY
+                    },
+                    z = if (corner and 4 == 0) {
+                        minZ
+                    } else {
+                        maxZ
+                    },
+                    red = red,
+                    green = green,
+                    blue = blue,
+                    alpha = alpha,
                 )
             }
             for (index in cubeEdges.indices) indices[indexCount++] = base + cubeEdges[index]
         }
-        record(kind = if (fill) WORLD_FILL else WORLD_WIRE, firstIndex = firstIndex)
+        record(
+            kind = if (fill) {
+                WORLD_FILL
+            } else {
+                WORLD_WIRE
+            },
+            firstIndex = firstIndex,
+        )
         hasWorldGeometry = true
     }
 
@@ -174,14 +236,16 @@ internal class PrimitiveRenderer private constructor(
         checkCanEnqueue()
         require(x.isFinite() && y.isFinite() && z.isFinite())
         require(width.isFinite() && length.isFinite() && width > 0f && length > 0f)
-        require(red >= 0f && red <= 1f && green >= 0f && green <= 1f)
-        require(blue >= 0f && blue <= 1f && alpha >= 0f && alpha <= 1f)
+        require(red in 0f..1f && green >= 0f && green <= 1f)
+        require(blue in 0f..1f && alpha >= 0f && alpha <= 1f)
         val minX = x - width * 0.5f
         val maxX = x + width * 0.5f
         val minZ = z - length * 0.5f
         val maxZ = z + length * 0.5f
         require(minX.isFinite() && maxX.isFinite() && minZ.isFinite() && maxZ.isFinite())
-        if (alpha == 0f) return
+        if (alpha == 0f) {
+            return
+        }
         reserve(addVertices = 4, addIndices = 6)
         val base = vertexCount
         val firstIndex = indexCount
@@ -207,14 +271,28 @@ internal class PrimitiveRenderer private constructor(
             indices = indices.copyOf(growCapacity(current = indices.size, required = requiredIndices))
         }
         if (kinds.size <= commandCount) {
-            val capacity = growCapacity(current = kinds.size, required = Math.addExact(commandCount, 1))
+            val capacity = growCapacity(
+                current = kinds.size,
+                required = Math.addExact(
+                    commandCount,
+                    1,
+                ),
+            )
             kinds = kinds.copyOf(capacity)
             firstIndices = firstIndices.copyOf(capacity)
             indexCounts = indexCounts.copyOf(capacity)
         }
     }
 
-    private fun vertex(x: Float, y: Float, z: Float, red: Float, green: Float, blue: Float, alpha: Float) {
+    private fun vertex(
+        x: Float,
+        y: Float,
+        z: Float,
+        red: Float,
+        green: Float,
+        blue: Float,
+        alpha: Float,
+    ) {
         val offset = vertexCount * VERTEX_FLOATS
         vertices[offset] = x
         vertices[offset + 1] = y
@@ -249,13 +327,27 @@ internal class PrimitiveRenderer private constructor(
     fun upload(gpa: NativeAllocator, command: Sdl3GpuCommandBuffer) {
         checkOpen()
         check(!uploaded) { "Primitive geometry has already been uploaded" }
-        if (indexCount == 0) return
+        if (indexCount == 0) {
+            return
+        }
         val vertexBytes = Math.multiplyExact(vertexCount, VERTEX_BYTES)
         val indexBytes = Math.multiplyExact(indexCount, 4)
         val data = mesh.map(gpa = gpa, vertexBytes = vertexBytes, indexBytes = indexBytes)
         try {
-            MemorySegment.copy(MemorySegment.ofArray(vertices), 0L, data, 0L, vertexBytes.toLong())
-            MemorySegment.copy(MemorySegment.ofArray(indices), 0L, data, mesh.indexOffset.toLong(), indexBytes.toLong())
+            MemorySegment.copy(
+                MemorySegment.ofArray(vertices),
+                0L,
+                data,
+                0L,
+                vertexBytes.toLong(),
+            )
+            MemorySegment.copy(
+                MemorySegment.ofArray(indices),
+                0L,
+                data,
+                mesh.indexOffset.toLong(),
+                indexBytes.toLong(),
+            )
         } finally {
             mesh.unmap()
         }
@@ -265,24 +357,34 @@ internal class PrimitiveRenderer private constructor(
 
     fun drawWorld(gpa: NativeAllocator, pass: Sdl3GpuRenderPass) {
         checkOpen()
-        if (hasWorldGeometry) drawLayer(gpa = gpa, pass = pass, world = true)
+        if (hasWorldGeometry) {
+            drawLayer(gpa = gpa, pass = pass, world = true)
+        }
     }
 
     fun drawRectangles(gpa: NativeAllocator, pass: Sdl3GpuRenderPass) {
         checkOpen()
-        if (hasRectangles) drawLayer(gpa = gpa, pass = pass, world = false)
+        if (hasRectangles) {
+            drawLayer(gpa = gpa, pass = pass, world = false)
+        }
     }
 
-    private fun drawLayer(gpa: NativeAllocator, pass: Sdl3GpuRenderPass, world: Boolean) {
+    private fun drawLayer(
+        gpa: NativeAllocator,
+        pass: Sdl3GpuRenderPass,
+        world: Boolean,
+    ) {
         check(uploaded) { "Upload primitive geometry before drawing" }
-        val uniforms = gpa.alloc(80, 16).fill(0)
+        val uniforms = gpa.alloc(requested = 80, alignment = 16).fill(0)
         camera.writeUniforms(destination = uniforms, width = pass.width, height = pass.height)
         pass.pushVertexUniform(slot = 0, data = uniforms)
-        mesh.bind(gpa, pass)
+        mesh.bind(gpa = gpa, pass = pass)
         var previousKind = -1
         for (index in 0 until commandCount) {
             val kind = kinds[index]
-            if ((kind <= WORLD_WIRE) != world) continue
+            if ((kind <= WORLD_WIRE) != world) {
+                continue
+            }
             if (kind != previousKind) {
                 pass.bindPipeline(
                     when (kind) {
@@ -343,61 +445,75 @@ internal class PrimitiveRenderer private constructor(
             var rectangleFill: Sdl3GpuGraphicsPipeline? = null
             var rectangleWire: Sdl3GpuGraphicsPipeline? = null
             try {
-                device.createShader(
-                    gpa = gpa,
-                    code = shader, entrypoint = "fragmentMain", stage = Sdl3GpuShaderStage.Fragment,
-                ).use { fragment ->
-                    device.createShader(
-                        gpa = gpa,
-                        code = shader, entrypoint = "vertex3D", stage = Sdl3GpuShaderStage.Vertex,
-                        uniformBufferCount = 1,
-                    ).use { vertex ->
-                        worldFill = createPipeline(
-                            gpa = gpa,
-                            device = device,
-                            vertex = vertex,
-                            fragment = fragment,
-                            targetFormat = targetFormat,
-                            depthFormat = depthFormat,
-                            primitiveType = Sdl3GpuPrimitiveType.Triangles,
-                        )
-                        worldWire = createPipeline(
-                            gpa = gpa,
-                            device = device,
-                            vertex = vertex,
-                            fragment = fragment,
-                            targetFormat = targetFormat,
-                            depthFormat = depthFormat,
-                            primitiveType = Sdl3GpuPrimitiveType.Lines,
-                        )
-                    }
-                    device.createShader(
+                device
+                    .createShader(
                         gpa = gpa,
                         code = shader,
-                        entrypoint = "vertex2D",
-                        stage = Sdl3GpuShaderStage.Vertex,
-                        uniformBufferCount = 1,
-                    ).use { vertex ->
-                        rectangleFill = createPipeline(
-                            gpa = gpa,
-                            device = device,
-                            vertex = vertex,
-                            fragment = fragment,
-                            targetFormat = targetFormat,
-                            depthFormat = null,
-                            primitiveType = Sdl3GpuPrimitiveType.Triangles,
-                        )
-                        rectangleWire = createPipeline(
-                            gpa = gpa,
-                            device = device,
-                            vertex = vertex,
-                            fragment = fragment,
-                            targetFormat = targetFormat,
-                            depthFormat = null,
-                            primitiveType = Sdl3GpuPrimitiveType.Lines,
-                        )
+                        entrypoint = "fragmentMain",
+                        stage = Sdl3GpuShaderStage.Fragment,
+                    )
+                    .use { fragment ->
+                        device
+                            .createShader(
+                                gpa = gpa,
+                                code = shader,
+                                entrypoint = "vertex3D",
+                                stage = Sdl3GpuShaderStage.Vertex,
+                                uniformBufferCount = 1,
+                            )
+                            .use { vertex ->
+                                worldFill =
+                                    createPipeline(
+                                        gpa = gpa,
+                                        device = device,
+                                        vertex = vertex,
+                                        fragment = fragment,
+                                        targetFormat = targetFormat,
+                                        depthFormat = depthFormat,
+                                        primitiveType = Sdl3GpuPrimitiveType.Triangles,
+                                    )
+                                worldWire =
+                                    createPipeline(
+                                        gpa = gpa,
+                                        device = device,
+                                        vertex = vertex,
+                                        fragment = fragment,
+                                        targetFormat = targetFormat,
+                                        depthFormat = depthFormat,
+                                        primitiveType = Sdl3GpuPrimitiveType.Lines,
+                                    )
+                            }
+                        device
+                            .createShader(
+                                gpa = gpa,
+                                code = shader,
+                                entrypoint = "vertex2D",
+                                stage = Sdl3GpuShaderStage.Vertex,
+                                uniformBufferCount = 1,
+                            )
+                            .use { vertex ->
+                                rectangleFill =
+                                    createPipeline(
+                                        gpa = gpa,
+                                        device = device,
+                                        vertex = vertex,
+                                        fragment = fragment,
+                                        targetFormat = targetFormat,
+                                        depthFormat = null,
+                                        primitiveType = Sdl3GpuPrimitiveType.Triangles,
+                                    )
+                                rectangleWire =
+                                    createPipeline(
+                                        gpa = gpa,
+                                        device = device,
+                                        vertex = vertex,
+                                        fragment = fragment,
+                                        targetFormat = targetFormat,
+                                        depthFormat = null,
+                                        primitiveType = Sdl3GpuPrimitiveType.Lines,
+                                    )
+                            }
                     }
-                }
                 return PrimitiveRenderer(
                     device = device,
                     worldFill = checkNotNull(worldFill),

@@ -1,7 +1,6 @@
 package com.varlanv.klab
 
 class ResourcesHolder {
-
     private val mutResources = mutableListOf<TracedCloseable>()
     val resources: List<TracedCloseable> = mutResources
 
@@ -18,7 +17,6 @@ class ResourcesHolder {
     }
 
     companion object {
-
         context(std: Std)
         inline fun <T> safeAllocate(block: (ResourcesHolder) -> T): T {
             val holder = ResourcesHolder()

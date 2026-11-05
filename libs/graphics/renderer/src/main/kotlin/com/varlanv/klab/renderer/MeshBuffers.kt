@@ -5,7 +5,6 @@ import com.varlanv.klab.sdl3.*
 import java.lang.foreign.MemorySegment
 
 internal class MeshBuffers(private val device: Sdl3GpuDevice) : AutoCloseable {
-
     private var vertices: Sdl3GpuBuffer? = null
     private var indices: Sdl3GpuBuffer? = null
     private var transfer: Sdl3GpuTransferBuffer? = null
@@ -13,7 +12,11 @@ internal class MeshBuffers(private val device: Sdl3GpuDevice) : AutoCloseable {
     val indexOffset: Int
         get() = checkNotNull(vertices).size
 
-    fun map(gpa: NativeAllocator, vertexBytes: Int, indexBytes: Int): MemorySegment {
+    fun map(
+        gpa: NativeAllocator,
+        vertexBytes: Int,
+        indexBytes: Int,
+    ): MemorySegment {
         require(vertexBytes > 0 && indexBytes > 0)
         ensureCapacity(gpa = gpa, vertexBytes = vertexBytes, indexBytes = indexBytes)
         return checkNotNull(transfer).map()
@@ -23,39 +26,72 @@ internal class MeshBuffers(private val device: Sdl3GpuDevice) : AutoCloseable {
         checkNotNull(transfer).unmap()
     }
 
-    fun upload(gpa: NativeAllocator, command: Sdl3GpuCommandBuffer, vertexBytes: Int, indexBytes: Int) {
+    fun upload(
+        gpa: NativeAllocator,
+        command: Sdl3GpuCommandBuffer,
+        vertexBytes: Int,
+        indexBytes: Int,
+    ) {
         command.beginCopyPass().use { copy ->
             copy.upload(
                 gpa = gpa,
                 source = checkNotNull(transfer),
                 destination = checkNotNull(vertices),
-                size = vertexBytes
+                size = vertexBytes,
             )
             copy.upload(
                 gpa = gpa,
-                source = checkNotNull(transfer), destination = checkNotNull(indices),
-                size = indexBytes, sourceOffset = indexOffset,
+                source = checkNotNull(transfer),
+                destination = checkNotNull(indices),
+                size = indexBytes,
+                sourceOffset = indexOffset,
             )
         }
     }
 
     fun bind(gpa: NativeAllocator, pass: Sdl3GpuRenderPass) {
-        pass.bindVertexBuffer(gpa, checkNotNull(vertices))
-        pass.bindIndexBuffer(gpa, checkNotNull(indices))
+        pass.bindVertexBuffer(
+            gpa = gpa,
+            buffer = checkNotNull(vertices),
+        )
+        pass.bindIndexBuffer(
+            gpa = gpa,
+            buffer = checkNotNull(indices),
+        )
     }
 
-    private fun ensureCapacity(gpa: NativeAllocator, vertexBytes: Int, indexBytes: Int) {
+    private fun ensureCapacity(
+        gpa: NativeAllocator,
+        vertexBytes: Int,
+        indexBytes: Int,
+    ) {
         val oldVertexSize = vertices?.size ?: 0
         val oldIndexSize = indices?.size ?: 0
-        if (vertexBytes <= oldVertexSize && indexBytes <= oldIndexSize) return
-        val vertexSize = if (vertexBytes > oldVertexSize) growCapacity(oldVertexSize, vertexBytes) else oldVertexSize
-        val indexSize = if (indexBytes > oldIndexSize) growCapacity(oldIndexSize, indexBytes) else oldIndexSize
+        if (vertexBytes <= oldVertexSize && indexBytes <= oldIndexSize) {
+            return
+        }
+        val vertexSize = if (vertexBytes > oldVertexSize) {
+            growCapacity(current = oldVertexSize, required = vertexBytes)
+        } else {
+            oldVertexSize
+        }
+        val indexSize = if (indexBytes > oldIndexSize) {
+            growCapacity(current = oldIndexSize, required = indexBytes)
+        } else {
+            oldIndexSize
+        }
         val newVertices = device.createBuffer(gpa = gpa, usage = Sdl3GpuBufferUsage.Vertex, size = vertexSize)
         var newIndices: Sdl3GpuBuffer? = null
         var newTransfer: Sdl3GpuTransferBuffer? = null
         try {
             newIndices = device.createBuffer(gpa = gpa, usage = Sdl3GpuBufferUsage.Index, size = indexSize)
-            newTransfer = device.createTransferBuffer(gpa = gpa, Math.addExact(vertexSize, indexSize))
+            newTransfer = device.createTransferBuffer(
+                gpa = gpa,
+                size = Math.addExact(
+                    vertexSize,
+                    indexSize,
+                ),
+            )
         } catch (failure: Throwable) {
             newTransfer?.close()
             newIndices?.close()

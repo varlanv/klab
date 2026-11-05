@@ -44,7 +44,7 @@ class GltfLoaderSpec : BaseSpec({
 
     should("prepare an untextured triangle with generated indices and default attributes") {
         // given a GLB containing only triangle positions
-        val source = glb(triangleJson())
+        val source = glb(json = triangleJson())
 
         // when preparing the model
         val model = GltfLoader().load(source)
@@ -55,16 +55,15 @@ class GltfLoaderSpec : BaseSpec({
         model.meshes.single().firstPrimitive shouldBe 0
         model.meshes.single().primitiveCount shouldBe 1
         model.nodes.single().meshIndex shouldBe 0
-        model.nodes.single().transform.toList() shouldBe listOf(
-            1f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 1f,
-        )
+        model.nodes.single().transform.toList() shouldBe
+            listOf(1f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 1f)
         primitive.vertexCount shouldBe 3
         primitive.vertexByteSize shouldBe 96
         primitive.vertexOffset shouldBe 0
         primitive.indexOffset shouldBe 96
         primitive.indexCount shouldBe 3
         primitive.indexFormat shouldBe PreparedIndexFormat.Uint16
-        indices(model) shouldBe listOf(0, 1, 2)
+        indices(model = model) shouldBe listOf(0, 1, 2)
         model.geometry.bytes.take(32) shouldBe floatBytes(0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f).toList()
         model.geometry.positionX(primitive.vertex(1)) shouldBe 1f
         model.geometry.positionY(primitive.vertex(2)) shouldBe 1f
@@ -84,9 +83,33 @@ class GltfLoaderSpec : BaseSpec({
     should("read interleaved attributes using their accessor offsets and source stride") {
         // given position, normal, and UV channels separated by a padding float
         val payload = floatBytes(
-            0f, 0f, 0f, 0f, 0f, 1f, 0.25f, 0.5f, 99f,
-            1f, 0f, 0f, 0f, 1f, 0f, 0.5f, 0.75f, 99f,
-            0f, 1f, 0f, 1f, 0f, 0f, 0.75f, 1f, 99f,
+            0f,
+            0f,
+            0f,
+            0f,
+            0f,
+            1f,
+            0.25f,
+            0.5f,
+            99f,
+            1f,
+            0f,
+            0f,
+            0f,
+            1f,
+            0f,
+            0.5f,
+            0.75f,
+            99f,
+            0f,
+            1f,
+            0f,
+            1f,
+            0f,
+            0f,
+            0.75f,
+            1f,
+            99f,
         )
         val json = triangleJson(
             bufferLength = payload.size,
@@ -117,10 +140,18 @@ class GltfLoaderSpec : BaseSpec({
 
     should("normalize quantized normals and unsigned texture coordinates") {
         // given signed byte normals and unsigned short UVs
-        val payload = ByteBuffer.allocate(60).order(ByteOrder.LITTLE_ENDIAN)
+        val payload = ByteBuffer
+            .allocate(60)
+            .order(ByteOrder.LITTLE_ENDIAN)
             .put(trianglePositions())
             .put(byteArrayOf(-128, 0, 0, 99, 0, 127, 0, 99, 0, 0, -128, 99))
-            .putShort(0).putShort(-1).putShort(32767).putShort(0).putShort(-1).putShort(-1).array()
+            .putShort(0)
+            .putShort(-1)
+            .putShort(32767)
+            .putShort(0)
+            .putShort(-1)
+            .putShort(-1)
+            .array()
         val json = triangleJson(
             bufferLength = payload.size,
             views = """
@@ -155,8 +186,15 @@ class GltfLoaderSpec : BaseSpec({
 
     should("apply sparse positions over an implicit zero-filled base") {
         // given one sparse replacement at the second vertex
-        val payload = ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN)
-            .put(1).position(4).putFloat(1f).putFloat(2f).putFloat(3f).array()
+        val payload = ByteBuffer
+            .allocate(16)
+            .order(ByteOrder.LITTLE_ENDIAN)
+            .put(1)
+            .position(4)
+            .putFloat(1f)
+            .putFloat(2f)
+            .putFloat(3f)
+            .array()
         val json = triangleJson(
             bufferLength = payload.size,
             views = """{"buffer":0,"byteLength":1},{"buffer":0,"byteOffset":4,"byteLength":12}""",
@@ -197,7 +235,8 @@ class GltfLoaderSpec : BaseSpec({
                 }
                 val json = triangleJson(
                     bufferLength = payload.capacity(),
-                    views = """{"buffer":0,"byteLength":36},{"buffer":0,"byteOffset":36,"byteLength":${count * width}}""",
+                    views = """{"buffer":0,"byteLength":36},{"buffer":0,"byteOffset":36,"byteLength":${count *
+                        width}}""",
                     accessors = """$POSITION_ACCESSOR,{"bufferView":1,"componentType":$componentType,"count":$count,"type":"SCALAR"}""",
                     primitives = """{"attributes":{"POSITION":0},"indices":1}""",
                 )
@@ -206,7 +245,7 @@ class GltfLoaderSpec : BaseSpec({
                 val model = GltfLoader().load(glb(json = json, bin = payload.array()))
 
                 // then preserve values and retain 32-bit indices only when supplied
-                indices(model) shouldBe expected
+                indices(model = model) shouldBe expected
                 model.primitives.single().indexFormat shouldBe
                     if (width == 4) { PreparedIndexFormat.Uint32 } else { PreparedIndexFormat.Uint16 }
             }
@@ -215,8 +254,16 @@ class GltfLoaderSpec : BaseSpec({
 
     should("apply sparse index replacements without a base index buffer") {
         // given two sparse replacements over three implicit zero indices
-        val payload = ByteBuffer.allocate(48).order(ByteOrder.LITTLE_ENDIAN)
-            .put(trianglePositions()).put(1).put(2).position(40).putInt(1).putInt(2).array()
+        val payload = ByteBuffer
+            .allocate(48)
+            .order(ByteOrder.LITTLE_ENDIAN)
+            .put(trianglePositions())
+            .put(1)
+            .put(2)
+            .position(40)
+            .putInt(1)
+            .putInt(2)
+            .array()
         val json = triangleJson(
             bufferLength = payload.size,
             views = """
@@ -236,7 +283,7 @@ class GltfLoaderSpec : BaseSpec({
         val model = GltfLoader().load(glb(json = json, bin = payload))
 
         // then retain the untouched zero and both replacements in 32-bit storage
-        indices(model) shouldBe listOf(0, 1, 2)
+        indices(model = model) shouldBe listOf(0, 1, 2)
         model.primitives.single().indexFormat shouldBe PreparedIndexFormat.Uint32
     }
 
@@ -251,11 +298,11 @@ class GltfLoaderSpec : BaseSpec({
             )
 
             // when preparing its implicit indices
-            val model = GltfLoader().load(glb(json))
+            val model = GltfLoader().load(glb(json = json))
 
             // then preserve every generated index, including values above signed-short range
             model.primitives.single().indexFormat shouldBe expectedFormat
-            indices(model) shouldBe List(vertexCount) { it }
+            indices(model = model) shouldBe List(vertexCount) { it }
         }
     }
 
@@ -270,31 +317,37 @@ class GltfLoaderSpec : BaseSpec({
         )
 
         // when preparing the scene
-        val model = GltfLoader().load(glb(json))
+        val model = GltfLoader().load(glb(json = json))
 
         // then prepare the shared mesh once and retain independent world transforms
         model.meshes.size shouldBe 1
         model.primitives.size shouldBe 1
         model.nodes.map { it.meshIndex } shouldBe listOf(0, 0)
-        model.nodes[0].transform.toList() shouldBe listOf(
-            2f, 0f, 0f, 0f, 0f, 3f, 0f, 0f, 0f, 0f, 4f, 0f, 4f, 3f, 4f, 1f,
-        )
+        model.nodes[0].transform.toList() shouldBe
+            listOf(2f, 0f, 0f, 0f, 0f, 3f, 0f, 0f, 0f, 0f, 4f, 0f, 4f, 3f, 4f, 1f)
         model.nodes[1].transform.toList().takeLast(4) shouldBe listOf(2f, 6f, 4f, 1f)
         (model.nodes[0].transform === model.nodes[1].transform) shouldBe false
     }
 
     for ((description, selection, expectedTranslations) in listOf(
         Triple(
-            first = "use the explicitly selected scene",
-            second = """, "scenes":[{"nodes":[0]},{"nodes":[1]}],"scene":1""",
-            third = listOf(7f),
+            "use the explicitly selected scene",
+            """, "scenes":[{"nodes":[0]},{"nodes":[1]}],"scene":1""",
+            listOf(7f),
         ),
         Triple(
-            first = "use the first scene when no default is declared",
-            second = """, "scenes":[{"nodes":[0]},{"nodes":[1]}]""",
-            third = listOf(2f),
+            "use the first scene when no default is declared",
+            """, "scenes":[{"nodes":[0]},{"nodes":[1]}]""",
+            listOf(2f),
         ),
-        Triple(first = "use parentless nodes when no scenes are declared", second = "", third = listOf(2f, 7f)),
+        Triple(
+            "use parentless nodes when no scenes are declared",
+            "",
+            listOf(
+                2f,
+                7f,
+            ),
+        ),
     )) {
         should(description) {
             // given two mesh instances and an optional scene selection
@@ -304,7 +357,7 @@ class GltfLoaderSpec : BaseSpec({
             )
 
             // when preparing the selected scene or parentless roots
-            val model = GltfLoader().load(glb(json))
+            val model = GltfLoader().load(glb(json = json))
 
             // then include only the selected instances
             model.nodes.map { it.transform[12] } shouldBe expectedTranslations
@@ -317,7 +370,7 @@ class GltfLoaderSpec : BaseSpec({
         val json = triangleJson(primitives = """{"attributes":{"POSITION":0}},{"attributes":{"POSITION":0}}""")
 
         // when preparing both primitives
-        val model = GltfLoader().load(glb(json))
+        val model = GltfLoader().load(glb(json = json))
         val first = model.primitives[0]
         val second = model.primitives[1]
 
@@ -328,7 +381,8 @@ class GltfLoaderSpec : BaseSpec({
             primitive.vertexOffset % 4 shouldBe 0
             primitive.indexOffset % 4 shouldBe 0
             primitive.indexOffset shouldBe primitive.vertexOffset + primitive.vertexByteSize
-            (primitive.indexOffset + primitive.indexCount * primitive.indexFormat.byteSize <= model.geometry.byteSize) shouldBe true
+            (primitive.indexOffset + primitive.indexCount * primitive.indexFormat.byteSize <=
+                model.geometry.byteSize) shouldBe true
         }
         indices(model = model, primitiveIndex = 0) shouldBe listOf(0, 1, 2)
         indices(model = model, primitiveIndex = 1) shouldBe listOf(0, 1, 2)
@@ -414,7 +468,9 @@ class GltfLoaderSpec : BaseSpec({
         // given equivalent inline and external buffer references
         val payload = trianglePositions()
         val resolved = mutableListOf<String>()
-        val embedded = triangleJson(bufferUri = "data:application/octet-stream;base64,${Base64.getEncoder().encodeToString(payload)}")
+        val embedded = triangleJson(
+            bufferUri = "data:application/octet-stream;base64,${Base64.getEncoder().encodeToString(payload)}",
+        )
         val external = triangleJson(bufferUri = "vertex%20data.bin")
         val loader = GltfLoader()
 
@@ -434,13 +490,13 @@ class GltfLoaderSpec : BaseSpec({
     should("own prepared storage independently of source bytes and subsequent loads") {
         // given a loader and a mutable GLB input
         val loader = GltfLoader()
-        val source = glb(triangleJson(nodes = """{"mesh":0,"translation":[2,3,4]}"""))
+        val source = glb(json = triangleJson(nodes = """{"mesh":0,"translation":[2,3,4]}"""))
         val first = loader.load(source)
         val retainedGeometry = first.geometry.bytes.toList()
 
         // when overwriting the source and reusing the loader
         source.fill(0)
-        val second = loader.load(glb(triangleJson()))
+        val second = loader.load(glb(json = triangleJson()))
 
         // then preserve the earlier model without sharing prepared storage
         first.geometry.bytes.toList() shouldBe retainedGeometry
@@ -456,13 +512,29 @@ class GltfLoaderSpec : BaseSpec({
         val asset = directory.resolve("scene.gltf")
         val buffer = directory.resolve("vertex data.bin")
         try {
-            Files.writeString(asset, triangleJson(bufferUri = "vertex%20data.bin"))
+            Files.writeString(
+                asset,
+                triangleJson(bufferUri = "vertex%20data.bin"),
+            )
             Files.write(buffer, trianglePositions())
             val loader = GltfLoader()
 
             // when loading before and after replacing the buffer contents
             val first = loader.load(asset)
-            Files.write(buffer, floatBytes(0f, 0f, 0f, 0f, 1f, 0f, 1f, 0f, 0f))
+            Files.write(
+                buffer,
+                floatBytes(
+                    0f,
+                    0f,
+                    0f,
+                    0f,
+                    1f,
+                    0f,
+                    1f,
+                    0f,
+                    0f,
+                ),
+            )
             val second = loader.load(asset)
 
             // then keep the first model's geometry independent of the file
@@ -479,16 +551,16 @@ class GltfLoaderSpec : BaseSpec({
     should("recover after malformed JSON and a failed model preparation") {
         // given a loader with an already returned model
         val loader = GltfLoader()
-        val retained = loader.load(glb(triangleJson()))
+        val retained = loader.load(glb(json = triangleJson()))
 
         // expect both parsing and preparation failures without poisoning subsequent loads
         for (invalid in listOf(
             """{"asset":{"version":"2.0"}""".toByteArray(),
-            glb(triangleJson(primitives = """{"mode":0,"attributes":{"POSITION":0}}""")),
+            glb(json = triangleJson(primitives = """{"mode":0,"attributes":{"POSITION":0}}""")),
         )) {
             shouldThrow<AssertionError> { loader.load(invalid) }
-            val recovered = loader.load(glb(triangleJson()))
-            indices(recovered) shouldBe listOf(0, 1, 2)
+            val recovered = loader.load(glb(json = triangleJson()))
+            indices(model = recovered) shouldBe listOf(0, 1, 2)
             retained.geometry.positionX(retained.primitives.single().vertex(1)) shouldBe 1f
         }
     }
@@ -502,8 +574,8 @@ class GltfLoaderSpec : BaseSpec({
         val empty = triangleJson(nodes = "{}")
 
         // expect preparation to reject both documents
-        shouldThrow<AssertionError> { GltfLoader().load(glb(blended)) }
-        shouldThrow<AssertionError> { GltfLoader().load(glb(empty)) }
+        shouldThrow<AssertionError> { GltfLoader().load(glb(json = blended)) }
+        shouldThrow<AssertionError> { GltfLoader().load(glb(json = empty)) }
     }
 
     should("reject skins, animations, and morph targets for static prepared models") {
@@ -524,7 +596,7 @@ class GltfLoaderSpec : BaseSpec({
 
         // expect preparation to reject each unsupported representation
         for (json in documents) {
-            shouldThrow<AssertionError> { GltfLoader().load(glb(json)) }
+            shouldThrow<AssertionError> { GltfLoader().load(glb(json = json)) }
         }
     }
 
@@ -553,13 +625,13 @@ class GltfLoaderSpec : BaseSpec({
 
         // expect validation to reject each document
         for (json in documents) {
-            shouldThrow<AssertionError> { GltfLoader().load(glb(json)) }
+            shouldThrow<AssertionError> { GltfLoader().load(glb(json = json)) }
         }
     }
 
     should("reject truncated GLB chunks and required geometry compression") {
         // given a corrupt chunk length and an unsupported required extension
-        val truncated = glb(triangleJson())
+        val truncated = glb(json = triangleJson())
         ByteBuffer.wrap(truncated).order(ByteOrder.LITTLE_ENDIAN).putInt(12, truncated.size)
         val compressed = triangleJson(
             extra = """, "extensionsUsed":["KHR_draco_mesh_compression"],"extensionsRequired":["KHR_draco_mesh_compression"]""",
@@ -567,7 +639,7 @@ class GltfLoaderSpec : BaseSpec({
 
         // expect validation to reject both inputs
         shouldThrow<AssertionError> { GltfLoader().load(truncated) }
-        shouldThrow<AssertionError> { GltfLoader().load(glb(compressed)) }
+        shouldThrow<AssertionError> { GltfLoader().load(glb(json = compressed)) }
     }
 })
 
@@ -591,7 +663,8 @@ private fun triangleJson(
          "bufferViews":[$views],"accessors":[$accessors],
          "meshes":[{"primitives":[$primitives]}],"nodes":[$nodes]
          $sceneFields$extra}
-    """.trimIndent()
+    """
+        .trimIndent()
 }
 
 private fun trianglePositions(): Bytes = floatBytes(0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, 0f)
@@ -604,7 +677,10 @@ private fun floatBytes(vararg values: Float): Bytes {
     return buffer.array()
 }
 
-private fun indices(model: PreparedModel, primitiveIndex: Int = 0): List<Int> {
+private fun indices(
+    model: PreparedModel,
+    primitiveIndex: Int = 0,
+): List<Int> {
     val primitive = model.primitives[primitiveIndex]
     val bytes = ByteBuffer.wrap(model.geometry.bytes).order(ByteOrder.LITTLE_ENDIAN)
     return List(primitive.indexCount) { index ->
@@ -630,7 +706,10 @@ private fun twoPixelPng(): Bytes {
     }
 }
 
-private fun glb(json: String, bin: Bytes = trianglePositions()): MutBytes {
+private fun glb(
+    json: String,
+    bin: Bytes = trianglePositions(),
+): MutBytes {
     val encoded = json.trimIndent().toByteArray(Charsets.UTF_8)
     val jsonSize = (encoded.size + 3) and -4
     val binSize = (bin.size + 3) and -4

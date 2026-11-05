@@ -15,7 +15,7 @@ sealed class BytesSliceBase(
     }
 
     inline operator fun get(idx: Int): Byte {
-        assert(idx in 0..<len)
+        assert(idx in 0..< len)
         return bytes[offset + idx]
     }
 
@@ -39,12 +39,10 @@ sealed class BytesSliceBase(
         return bytes.getPackedFloat(offset + idx)
     }
 
-
     inline fun getPackedDouble(idx: Int): Double {
         assert(idx >= 0 && idx <= len - Double.SIZE_BYTES)
         return bytes.getPackedDouble(offset + idx)
     }
-
 
     inline fun forEach(block: (Byte) -> Unit) {
         val limit = offset + len
@@ -62,64 +60,64 @@ sealed class BytesSliceBase(
 
     inline fun cloneSlice(): MutBytes {
         val res = MutBytes(len)
-        bytes.copyInto(destination = res, destinationOffset = 0, startIndex = offset, endIndex = offset + len)
+        bytes.copyInto(res, 0, offset, offset + len)
         return res
     }
 
     override fun equals(other: Any?): Boolean =
         other is BytesSliceBase &&
-                Arrays.mismatch(
-                    bytes,
-                    offset,
-                    len + offset,
-                    other.bytes,
-                    other.offset,
-                    other.offset + other.len,
-                ) == -1
+            Arrays.mismatch(bytes, offset, len + offset, other.bytes, other.offset, other.offset + other.len) == -1
 
     override fun hashCode(): Int = BytesHash.target.hash(bytes = bytes, start = offset, end = offset + len)
 }
 
-
-class BytesSlice(bytes: Bytes, offset: Int, len: Int) : BytesSliceBase(bytes, offset, len) {
+class BytesSlice(
+    bytes: Bytes,
+    offset: Int,
+    len: Int,
+) : BytesSliceBase(bytes, offset, len) {
     companion object {
         val empty: BytesSlice = BytesSlice(bytes = stableEmptyBytes, offset = 0, len = 0)
     }
 }
 
-class MutBytesSlice(bytes: MutBytes, offset: Int, len: Int) : BytesSliceBase(bytes, offset, len) {
-
+class MutBytesSlice(
+    bytes: MutBytes,
+    offset: Int,
+    len: Int,
+) : BytesSliceBase(bytes, offset, len) {
     inline operator fun set(idx: Int, value: Byte) {
-        assert(idx in 0..<len)
+        assert(idx in 0..< len)
         bytes[offset + idx] = value
     }
 
     inline fun setPackedInt(idx: Int, value: Int) {
         assert(idx >= 0 && idx <= len - Int.SIZE_BYTES)
-        bytes.setPackedInt(offset + idx, value)
+        bytes.setPackedInt(idx = offset + idx, value = value)
     }
 
     inline fun setPackedLong(idx: Int, value: Long) {
         assert(idx >= 0 && idx <= len - Long.SIZE_BYTES)
-        bytes.setPackedLong(offset + idx, value)
+        bytes.setPackedLong(idx = offset + idx, value = value)
     }
 
     inline fun setPackedShort(idx: Int, value: Short) {
         assert(idx >= 0 && idx <= len - Short.SIZE_BYTES)
-        bytes.setPackedShort(offset + idx, value)
+        bytes.setPackedShort(idx = offset + idx, value = value)
     }
 
     inline fun setPackedFloat(idx: Int, value: Float) {
         assert(idx >= 0 && idx <= len - Float.SIZE_BYTES)
-        bytes.setPackedFloat(offset + idx, value)
+        bytes.setPackedFloat(idx = offset + idx, value = value)
     }
 
     inline fun setPackedDouble(idx: Int, value: Double) {
         assert(idx >= 0 && idx <= len - Double.SIZE_BYTES)
-        bytes.setPackedDouble(offset + idx, value)
+        bytes.setPackedDouble(idx = offset + idx, value = value)
     }
 
     inline fun asInts(): MutIntsBytesSlice = MutIntsBytesSlice(this)
+
     inline fun asLongs(): MutLongBytesSlice = MutLongBytesSlice(this)
 
     companion object {
@@ -132,12 +130,12 @@ value class MutIntsBytesSlice(@PublishedApi internal val bytes: MutBytesSlice) {
     val len get() = bytes.len / Int.SIZE_BYTES
 
     inline operator fun set(idx: Int, value: Int) {
-        assert(idx in 0..<len)
-        bytes.bytes.setPackedInt(bytes.offset + idx * Int.SIZE_BYTES, value)
+        assert(idx in 0..< len)
+        bytes.bytes.setPackedInt(idx = bytes.offset + idx * Int.SIZE_BYTES, value = value)
     }
 
     inline operator fun get(idx: Int): Int {
-        assert(idx in 0..<len)
+        assert(idx in 0..< len)
         return bytes.bytes.getPackedInt(bytes.offset + idx * Int.SIZE_BYTES)
     }
 }
@@ -147,12 +145,12 @@ value class MutLongBytesSlice(@PublishedApi internal val bytes: MutBytesSlice) {
     val len get() = bytes.len / Long.SIZE_BYTES
 
     inline operator fun set(idx: Int, value: Long) {
-        assert(idx in 0..<len)
-        bytes.bytes.setPackedLong(bytes.offset + idx * Long.SIZE_BYTES, value)
+        assert(idx in 0..< len)
+        bytes.bytes.setPackedLong(idx = bytes.offset + idx * Long.SIZE_BYTES, value = value)
     }
 
     inline operator fun get(idx: Int): Long {
-        assert(idx in 0..<len)
+        assert(idx in 0..< len)
         return bytes.bytes.getPackedLong(bytes.offset + idx * Long.SIZE_BYTES)
     }
 }

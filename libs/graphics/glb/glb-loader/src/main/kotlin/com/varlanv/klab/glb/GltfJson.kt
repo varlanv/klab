@@ -103,10 +103,20 @@ private val precisePowers: Doubles = doubleArrayOf(
     1e19,
     1e20,
     1e21,
-    1e22
+    1e22,
 )
-private val decimalPowers: Doubles =
-    doubleArrayOf(1.0, 10.0, 100.0, 1000.0, 10000.0, 100000.0, 1000000.0, 10000000.0, 100000000.0, 1000000000.0)
+private val decimalPowers: Doubles = doubleArrayOf(
+    1.0,
+    10.0,
+    100.0,
+    1000.0,
+    10000.0,
+    100000.0,
+    1000000.0,
+    10000000.0,
+    100000000.0,
+    1000000000.0,
+)
 
 internal class GltfJson {
     private var tokens: MutInts = MutInts(INITIAL_TOKEN_CAPACITY)
@@ -118,7 +128,11 @@ internal class GltfJson {
     private var fieldBuckets: MutInts = MutInts(INITIAL_TOKEN_CAPACITY)
     private var fieldUsed = 1
 
-    fun parse(source: Bytes, offset: Int, length: Int) {
+    fun parse(
+        source: Bytes,
+        offset: Int,
+        length: Int,
+    ) {
         bytes = source
         cursor = offset
         limit = Math.addExact(offset, length)
@@ -126,8 +140,11 @@ internal class GltfJson {
         whitespace()
         assert(cursor < limit && bytes[cursor] == '{'.code.toByte()) { "Expected a glTF JSON object" }
         value(0)
-        if (fieldOffsets.size < used) fieldOffsets = MutInts(maxOf(used, fieldOffsets.size * 2))
-        else fieldOffsets.fill(0, 0, used)
+        if (fieldOffsets.size < used) {
+            fieldOffsets = MutInts(maxOf(used, fieldOffsets.size * 2))
+        } else {
+            fieldOffsets.fill(0, 0, used)
+        }
         fieldUsed = 1
         whitespace()
         assert(cursor == limit) { "Trailing JSON data" }
@@ -139,7 +156,9 @@ internal class GltfJson {
 
     private fun add(start: Int, kind: Int): Int {
         val token = used++
-        if (used * TOKEN_STRIDE > tokens.size) tokens = tokens.copyOf(tokens.size * TOKEN_CAPACITY_GROWTH)
+        if (used * TOKEN_STRIDE > tokens.size) {
+            tokens = tokens.copyOf(tokens.size * TOKEN_CAPACITY_GROWTH)
+        }
         tokens[token * TOKEN_STRIDE + TOKEN_START] = start
         tokens[token * TOKEN_STRIDE + TOKEN_END] = 0
         tokens[token * TOKEN_STRIDE + TOKEN_NEXT] = 0
@@ -156,12 +175,16 @@ internal class GltfJson {
             quoted(false)
             return
         }
-        val token = add(start, ch)
+        val token = add(start = start, kind = ch)
         when (ch) {
             JSON_OBJECT_OPEN, JSON_ARRAY_OPEN -> {
                 cursor++
                 whitespace()
-                val closing = if (ch == JSON_OBJECT_OPEN) JSON_OBJECT_CLOSE else JSON_ARRAY_CLOSE
+                val closing = if (ch == JSON_OBJECT_OPEN) {
+                    JSON_OBJECT_CLOSE
+                } else {
+                    JSON_ARRAY_CLOSE
+                }
                 if (cursor < limit && bytes[cursor].toInt() != closing) {
                     while (true) {
                         if (ch == JSON_OBJECT_OPEN) {
@@ -176,7 +199,9 @@ internal class GltfJson {
                         tokens[token * TOKEN_STRIDE + TOKEN_SIZE_OR_HASH]++
                         whitespace()
                         assert(cursor < limit) { "Truncated JSON container" }
-                        if (bytes[cursor].toInt() == closing) break
+                        if (bytes[cursor].toInt() == closing) {
+                            break
+                        }
                         assert(bytes[cursor].toInt() == JSON_COMMA) { "Expected JSON comma" }
                         cursor++
                         whitespace()
@@ -186,17 +211,25 @@ internal class GltfJson {
                 cursor++
             }
 
-            JSON_TRUE_START -> literal("true")
-            JSON_FALSE_START -> literal("false")
-            JSON_NULL_START -> literal("null")
-            else -> number()
+            JSON_TRUE_START -> {
+                literal("true")
+            }
+            JSON_FALSE_START -> {
+                literal("false")
+            }
+            JSON_NULL_START -> {
+                literal("null")
+            }
+            else -> {
+                number()
+            }
         }
         tokens[token * TOKEN_STRIDE + TOKEN_END] = cursor
         tokens[token * TOKEN_STRIDE + TOKEN_NEXT] = used
     }
 
     private fun quoted(hashKey: Boolean) {
-        val token = add(++cursor, JSON_QUOTE)
+        val token = add(start = ++cursor, kind = JSON_QUOTE)
         var hash = 0
         var escapedString = false
         while (cursor < limit) {
@@ -204,17 +237,18 @@ internal class GltfJson {
                 val word = longViewHandle.get(bytes, cursor) as Long
                 val quote = word xor REPEATED_QUOTES
                 val slash = word xor REPEATED_BACKSLASHES
-                val special = ((quote - BYTE_LOW_BITS) and quote.inv()) or
-                        ((slash - BYTE_LOW_BITS) and slash.inv())
+                val special = ((quote - BYTE_LOW_BITS) and quote.inv()) or ((slash - BYTE_LOW_BITS) and slash.inv())
                 val control = (word and CONTROL_BYTE_MASK) + CONTROL_BYTE_BIAS
-                if ((word and BYTE_HIGH_BITS) == 0L && (special and BYTE_HIGH_BITS) == 0L &&
+                if ((word and BYTE_HIGH_BITS) == 0L &&
+                    (special and BYTE_HIGH_BITS) == 0L &&
                     (control and BYTE_HIGH_BITS) == CONTROL_EXPECTED_HIGH_BITS
                 ) {
                     if (hashKey) {
                         var lane = 0
                         while (lane < Long.SIZE_BYTES) {
                             hash =
-                                hash * STRING_HASH_MULTIPLIER + ((word ushr (lane * Byte.SIZE_BITS)).toInt() and UNSIGNED_BYTE_MASK)
+                                hash * STRING_HASH_MULTIPLIER +
+                                    ((word ushr (lane * Byte.SIZE_BITS)).toInt() and UNSIGNED_BYTE_MASK)
                             lane++
                         }
                     }
@@ -226,7 +260,11 @@ internal class GltfJson {
             if (ch == JSON_QUOTE) {
                 tokens[token * TOKEN_STRIDE + TOKEN_END] = cursor - 1
                 tokens[token * TOKEN_STRIDE + TOKEN_NEXT] = used
-                tokens[token * TOKEN_STRIDE + TOKEN_SIZE_OR_HASH] = if (escapedString) ESCAPED_STRING_HASH else hash
+                tokens[token * TOKEN_STRIDE + TOKEN_SIZE_OR_HASH] = if (escapedString) {
+                    ESCAPED_STRING_HASH
+                } else {
+                    hash
+                }
                 return
             }
             assert(ch >= JSON_SPACE) { "Control character in JSON string" }
@@ -242,8 +280,10 @@ internal class GltfJson {
                 val second = bytes[cursor].toInt() and 0xff
                 assert(
                     second in 0x80..0xbf &&
-                            (ch != 0xe0 || second >= 0xa0) && (ch != 0xed || second < 0xa0) &&
-                            (ch != 0xf0 || second >= 0x90) && (ch != 0xf4 || second < 0x90)
+                        (ch != 0xe0 || second >= 0xa0) &&
+                        (ch != 0xed || second < 0xa0) &&
+                        (ch != 0xf0 || second >= 0x90) &&
+                        (ch != 0xf4 || second < 0x90),
                 ) { "Invalid UTF-8" }
                 repeat(continuation) {
                     assert((bytes[cursor].toInt() and 0xc0) == 0x80) { "Invalid UTF-8" }
@@ -251,25 +291,35 @@ internal class GltfJson {
                 }
                 continue
             }
-            if (hashKey) hash = hash * STRING_HASH_MULTIPLIER + ch
+            if (hashKey) {
+                hash = hash * STRING_HASH_MULTIPLIER + ch
+            }
             if (ch == JSON_BACKSLASH) {
                 escapedString = true
                 assert(cursor < limit) { "Truncated JSON escape" }
                 val escaped = bytes[cursor++].toInt()
                 assert(
-                    escaped == JSON_QUOTE || escaped == JSON_BACKSLASH || escaped == JSON_SLASH ||
-                            escaped == JSON_ESCAPE_BACKSPACE || escaped == JSON_ESCAPE_FORM_FEED ||
-                            escaped == JSON_ESCAPE_LINE_FEED || escaped == JSON_ESCAPE_CARRIAGE_RETURN ||
-                            escaped == JSON_ESCAPE_TAB || escaped == JSON_ESCAPE_UNICODE
+                    escaped == JSON_QUOTE ||
+                        escaped == JSON_BACKSLASH ||
+                        escaped == JSON_SLASH ||
+                        escaped == JSON_ESCAPE_BACKSPACE ||
+                        escaped == JSON_ESCAPE_FORM_FEED ||
+                        escaped == JSON_ESCAPE_LINE_FEED ||
+                        escaped == JSON_ESCAPE_CARRIAGE_RETURN ||
+                        escaped == JSON_ESCAPE_TAB ||
+                        escaped == JSON_ESCAPE_UNICODE,
                 ) { "Invalid JSON escape" }
-                if (hashKey) hash = hash * STRING_HASH_MULTIPLIER + escaped
+                if (hashKey) {
+                    hash = hash * STRING_HASH_MULTIPLIER + escaped
+                }
                 if (escaped == JSON_ESCAPE_UNICODE) {
                     val code = unicodeEscape()
                     assert(code !in 0xdc00..0xdfff) { "Unpaired Unicode surrogate" }
                     if (code in 0xd800..0xdbff) {
                         assert(
-                            cursor <= limit - 6 && bytes[cursor].toInt() == JSON_BACKSLASH &&
-                                    bytes[cursor + 1].toInt() == JSON_ESCAPE_UNICODE
+                            cursor <= limit - 6 &&
+                                bytes[cursor].toInt() == JSON_BACKSLASH &&
+                                bytes[cursor + 1].toInt() == JSON_ESCAPE_UNICODE,
                         ) { "Unpaired Unicode surrogate" }
                         cursor += 2
                         val lowSurrogate = unicodeEscape()
@@ -301,9 +351,13 @@ internal class GltfJson {
     }
 
     private fun number() {
-        if (bytes[cursor].toInt() == JSON_MINUS) cursor++
+        if (bytes[cursor].toInt() == JSON_MINUS) {
+            cursor++
+        }
         assert(cursor < limit) { "Truncated JSON number" }
-        if (bytes[cursor].toInt() == DIGIT_ZERO) cursor++ else {
+        if (bytes[cursor].toInt() == DIGIT_ZERO) {
+            cursor++
+        } else {
             assert(bytes[cursor].toInt() in DIGIT_ONE..DIGIT_NINE) { "Invalid JSON number" }
             digits()
         }
@@ -314,7 +368,9 @@ internal class GltfJson {
         }
         if (cursor < limit && (bytes[cursor].toInt() or ASCII_CASE_BIT) == JSON_EXPONENT) {
             cursor++
-            if (cursor < limit && (bytes[cursor].toInt() == JSON_PLUS || bytes[cursor].toInt() == JSON_MINUS)) cursor++
+            if (cursor < limit && (bytes[cursor].toInt() == JSON_PLUS || bytes[cursor].toInt() == JSON_MINUS)) {
+                cursor++
+            }
             assert(cursor < limit && bytes[cursor].toInt() in DIGIT_ZERO..DIGIT_NINE) { "Invalid JSON exponent" }
             digits()
         }
@@ -327,14 +383,19 @@ internal class GltfJson {
     private fun whitespace() {
         while (cursor < limit) {
             when (bytes[cursor].toInt()) {
-                JSON_SPACE, JSON_TAB, JSON_LINE_FEED, JSON_CARRIAGE_RETURN -> cursor++; else -> return
+                JSON_SPACE, JSON_TAB, JSON_LINE_FEED, JSON_CARRIAGE_RETURN -> cursor++
+                else -> return
             }
         }
     }
 
     fun next(token: Int): Int = tokens[token * TOKEN_STRIDE + TOKEN_NEXT]
 
-    fun size(token: Int): Int = if (token < 0) 0 else tokens[token * TOKEN_STRIDE + TOKEN_SIZE_OR_HASH]
+    fun size(token: Int): Int = if (token < 0) {
+        0
+    } else {
+        tokens[token * TOKEN_STRIDE + TOKEN_SIZE_OR_HASH]
+    }
 
     fun element(token: Int, index: Int): Int {
         assert(token >= 0 && index >= 0 && index < size(token))
@@ -358,8 +419,9 @@ internal class GltfJson {
         if (offset == 0) {
             offset = fieldUsed
             fieldUsed = Math.addExact(fieldUsed, capacity)
-            if (fieldUsed > fieldBuckets.size) fieldBuckets =
-                fieldBuckets.copyOf(maxOf(fieldUsed, fieldBuckets.size * 2))
+            if (fieldUsed > fieldBuckets.size) {
+                fieldBuckets = fieldBuckets.copyOf(maxOf(fieldUsed, fieldBuckets.size * 2))
+            }
             fieldBuckets.fill(0, offset, fieldUsed)
             fieldOffsets[obj] = offset
             var key = obj + 1
@@ -388,7 +450,7 @@ internal class GltfJson {
             }
             val key = entry - 1
             val hash = tokens[key * TOKEN_STRIDE + TOKEN_SIZE_OR_HASH]
-            if ((hash == name.keyHash || hash == ESCAPED_STRING_HASH) && matchesBytes(key, name.utf8)) {
+            if ((hash == name.keyHash || hash == ESCAPED_STRING_HASH) && matchesBytes(token = key, text = name.utf8)) {
                 result = key + 1
             }
             slot = (slot + 1) and (capacity - 1)
@@ -396,7 +458,9 @@ internal class GltfJson {
     }
 
     fun matches(token: Int, name: GltfName): Boolean =
-        token >= 0 && tokens[token * TOKEN_STRIDE + TOKEN_KIND] == JSON_QUOTE && matchesBytes(token, name.utf8)
+        token >= 0 &&
+            tokens[token * TOKEN_STRIDE + TOKEN_KIND] == JSON_QUOTE &&
+            matchesBytes(token = token, text = name.utf8)
 
     private fun matchesBytes(token: Int, text: Str): Boolean {
         if (tokens[token * TOKEN_STRIDE + TOKEN_SIZE_OR_HASH] == ESCAPED_STRING_HASH) {
@@ -404,9 +468,8 @@ internal class GltfJson {
         }
         val start = tokens[token * TOKEN_STRIDE + TOKEN_START]
         val end = tokens[token * TOKEN_STRIDE + TOKEN_END]
-        return end - start == text.len && Arrays.mismatch(
-            bytes, start, end, text.bytes, text.offset, text.offset + text.len
-        ) == -1
+        return end - start == text.len &&
+            Arrays.mismatch(bytes, start, end, text.bytes, text.offset, text.offset + text.len) == -1
     }
 
     fun field(obj: Int, nameToken: Int): Int {
@@ -422,14 +485,15 @@ internal class GltfJson {
             val equal = if (hash == ESCAPED_STRING_HASH || candidateHash == ESCAPED_STRING_HASH) {
                 string(key) == string(nameToken)
             } else {
-                hash == candidateHash && Arrays.mismatch(
-                    bytes,
-                    start,
-                    limit,
-                    bytes,
-                    tokens[key * TOKEN_STRIDE + TOKEN_START],
-                    tokens[key * TOKEN_STRIDE + TOKEN_END]
-                ) == -1
+                hash == candidateHash &&
+                    Arrays.mismatch(
+                        bytes,
+                        start,
+                        limit,
+                        bytes,
+                        tokens[key * TOKEN_STRIDE + TOKEN_START],
+                        tokens[key * TOKEN_STRIDE + TOKEN_END],
+                    ) == -1
             }
             if (equal) {
                 result = key + 1
@@ -449,7 +513,7 @@ internal class GltfJson {
         val hash = name.hashCode()
         var result = JSON_MISSING_TOKEN
         while (key < end) {
-            if ((tokens[key * TOKEN_STRIDE + TOKEN_SIZE_OR_HASH] == hash && equals(key, name)) ||
+            if ((tokens[key * TOKEN_STRIDE + TOKEN_SIZE_OR_HASH] == hash && equals(token = key, text = name)) ||
                 (tokens[key * TOKEN_STRIDE + TOKEN_SIZE_OR_HASH] == ESCAPED_STRING_HASH && string(key) == name)
             ) {
                 result = key + 1
@@ -470,11 +534,10 @@ internal class GltfJson {
     }
 
     fun matches(token: Int, text: String): Boolean =
-        token >= 0 && tokens[token * TOKEN_STRIDE + TOKEN_KIND] == JSON_QUOTE &&
-                (equals(
-                    token,
-                    text
-                ) || (tokens[token * TOKEN_STRIDE + TOKEN_SIZE_OR_HASH] == ESCAPED_STRING_HASH && string(token) == text))
+        token >= 0 &&
+            tokens[token * TOKEN_STRIDE + TOKEN_KIND] == JSON_QUOTE &&
+            (equals(token = token, text = text) ||
+                (tokens[token * TOKEN_STRIDE + TOKEN_SIZE_OR_HASH] == ESCAPED_STRING_HASH && string(token) == text))
 
     private fun equals(token: Int, text: String): Boolean {
         val start = tokens[token * TOKEN_STRIDE + TOKEN_START]
@@ -489,7 +552,10 @@ internal class GltfJson {
         return true
     }
 
-    fun int(token: Int, default: Int = 0): Int {
+    fun int(
+        token: Int,
+        default: Int = 0,
+    ): Int {
         if (token < 0) {
             return default
         }
@@ -499,18 +565,19 @@ internal class GltfJson {
         val end = tokens[token * TOKEN_STRIDE + TOKEN_END]
         var sign = 1
         if (bytes[pos].toInt() == JSON_MINUS) {
-            sign = -1; pos++
+            sign = -1
+            pos++
         }
         var result = 0L
         assert(pos < end) { "Expected JSON integer" }
         while (pos < end) {
             val digit = bytes[pos++].toInt() - DIGIT_ZERO
-            if (digit !in 0..<DECIMAL_RADIX) {
-                return decimalInt(start, end)
+            if (digit !in 0..< DECIMAL_RADIX) {
+                return decimalInt(start = start, end = end)
             }
             result = result * DECIMAL_RADIX + digit
             if (result > MAX_INTEGER_MAGNITUDE) {
-                return decimalInt(start, end)
+                return decimalInt(start = start, end = end)
             }
         }
         return Math.toIntExact(result * sign)
@@ -531,7 +598,7 @@ internal class GltfJson {
     }
 
     private fun decimalInt(start: Int, end: Int): Int {
-        if (zeroCoefficient(start, end)) {
+        if (zeroCoefficient(start = start, end = end)) {
             return 0
         }
         try {
@@ -554,26 +621,33 @@ internal class GltfJson {
         val maximum: Long
         when (componentType) {
             GLTF_COMPONENT_BYTE -> {
-                minimum = -128; maximum = 127
+                minimum = -128
+                maximum = 127
             }
 
             GLTF_COMPONENT_UNSIGNED_BYTE -> {
-                minimum = 0; maximum = 255
+                minimum = 0
+                maximum = 255
             }
 
             GLTF_COMPONENT_SHORT -> {
-                minimum = -32768; maximum = 32767
+                minimum = -32768
+                maximum = 32767
             }
 
             GLTF_COMPONENT_UNSIGNED_SHORT -> {
-                minimum = 0; maximum = 65535
+                minimum = 0
+                maximum = 65535
             }
 
             GLTF_COMPONENT_UNSIGNED_INT -> {
-                minimum = 0; maximum = 4294967295L
+                minimum = 0
+                maximum = 4294967295L
             }
 
-            else -> throw IllegalArgumentException("Invalid component type")
+            else -> {
+                throw IllegalArgumentException("Invalid component type")
+            }
         }
         var child = token + 1
         repeat(size(token)) {
@@ -581,17 +655,10 @@ internal class GltfJson {
             val start = tokens[child * TOKEN_STRIDE + TOKEN_START]
             val end = tokens[child * TOKEN_STRIDE + TOKEN_END]
             val value = try {
-                if (zeroCoefficient(start, end)) {
+                if (zeroCoefficient(start = start, end = end)) {
                     0L
                 } else {
-                    BigDecimal(
-                        String(
-                            bytes,
-                            start,
-                            end - start,
-                            Charsets.US_ASCII
-                        )
-                    ).longValueExact()
+                    BigDecimal(String(bytes, start, end - start, Charsets.US_ASCII)).longValueExact()
                 }
             } catch (exception: ArithmeticException) {
                 throw IllegalArgumentException("Invalid integer accessor bound", exception)
@@ -601,7 +668,10 @@ internal class GltfJson {
         }
     }
 
-    fun float(token: Int, default: Float = 0f): Float {
+    fun float(
+        token: Int,
+        default: Float = 0f,
+    ): Float {
         if (token < 0) {
             return default
         }
@@ -609,7 +679,9 @@ internal class GltfJson {
         var pos = tokens[token * TOKEN_STRIDE + TOKEN_START]
         val end = tokens[token * TOKEN_STRIDE + TOKEN_END]
         val negative = bytes[pos].toInt() == JSON_MINUS
-        if (negative) pos++
+        if (negative) {
+            pos++
+        }
         var value = 0
         var digits = 0
         var fraction = 0
@@ -617,16 +689,18 @@ internal class GltfJson {
         while (pos < end) {
             val ch = bytes[pos++].toInt()
             if (ch == JSON_DECIMAL_POINT && !decimal) {
-                decimal = true;
+                decimal = true
                 continue
             }
             if (ch !in DIGIT_ZERO..DIGIT_NINE || digits == MAX_FAST_FLOAT_DIGITS) {
-                pos = -1;
+                pos = -1
                 break
             }
             value = value * DECIMAL_RADIX + ch - DIGIT_ZERO
             digits++
-            if (decimal) fraction++
+            if (decimal) {
+                fraction++
+            }
         }
         if (pos == end && digits <= MAX_FAST_FLOAT_DIGITS && bytes[end - 1].toInt() in DIGIT_ZERO..DIGIT_NINE) {
             val result = (value.toDouble() / decimalPowers[fraction]).toFloat()
@@ -644,7 +718,9 @@ internal class GltfJson {
         val end = tokens[token * TOKEN_STRIDE + TOKEN_END]
         var pos = start
         val negative = bytes[pos].toInt() == JSON_MINUS
-        if (negative) pos++
+        if (negative) {
+            pos++
+        }
         var mantissa = 0L
         var significant = 0
         var fraction = 0
@@ -652,8 +728,8 @@ internal class GltfJson {
         while (pos < end) {
             val ch = bytes[pos].toInt()
             if (ch == JSON_DECIMAL_POINT) {
-                decimal = true;
-                pos++;
+                decimal = true
+                pos++
                 continue
             }
             if (ch !in DIGIT_ZERO..DIGIT_NINE) {
@@ -663,7 +739,7 @@ internal class GltfJson {
                 significant++
             }
             if (significant > MAX_SIGNIFICANT_DIGITS) {
-                return slowFloat(start, end)
+                return slowFloat(start = start, end = end)
             }
             mantissa = mantissa * DECIMAL_RADIX + ch - DIGIT_ZERO
             if (decimal) {
@@ -676,14 +752,15 @@ internal class GltfJson {
             pos++
             var exponentSign = 1
             if (bytes[pos].toInt() == JSON_MINUS) {
-                exponentSign = -1; pos++
+                exponentSign = -1
+                pos++
             } else if (bytes[pos].toInt() == JSON_PLUS) {
                 pos++
             }
             while (pos < end) {
                 exponent = exponent * DECIMAL_RADIX + bytes[pos++].toInt() - DIGIT_ZERO
                 if (exponent > MAX_PARSED_EXPONENT) {
-                    return slowFloat(start, end)
+                    return slowFloat(start = start, end = end)
                 }
             }
             exponent *= exponentSign
@@ -696,7 +773,9 @@ internal class GltfJson {
             }
         }
         exponent -= fraction
-        if (exponent !in -MAX_PRECISE_EXPONENT..MAX_PRECISE_EXPONENT) return slowFloat(start, end)
+        if (exponent !in -MAX_PRECISE_EXPONENT..MAX_PRECISE_EXPONENT) {
+            return slowFloat(start = start, end = end)
+        }
         val value = if (exponent < 0) {
             mantissa.toDouble() / precisePowers[-exponent]
         } else {
@@ -704,7 +783,7 @@ internal class GltfJson {
         }
         val rounded = value.toFloat()
         if (!rounded.isFinite()) {
-            return slowFloat(start, end)
+            return slowFloat(start = start, end = end)
         }
         val neighbor = if (value > rounded.toDouble()) {
             rounded.nextUp()
@@ -713,7 +792,7 @@ internal class GltfJson {
         }
         val midpoint = (rounded.toDouble() + neighbor.toDouble()) * MIDPOINT_FACTOR
         if (abs(value - midpoint) <= Math.ulp(value) * FLOAT_MIDPOINT_ULPS) {
-            return slowFloat(start, end)
+            return slowFloat(start = start, end = end)
         }
         return if (negative) {
             -rounded
@@ -730,13 +809,16 @@ internal class GltfJson {
         return value
     }
 
-    fun bool(token: Int, default: Boolean = false): Boolean {
+    fun bool(
+        token: Int,
+        default: Boolean = false,
+    ): Boolean {
         if (token < 0) {
             return default
         }
         return when (tokens[token * TOKEN_STRIDE + TOKEN_KIND]) {
-            JSON_TRUE_START -> true;
-            JSON_FALSE_START -> false;
+            JSON_TRUE_START -> true
+            JSON_FALSE_START -> false
             else -> error("Expected JSON boolean")
         }
     }
@@ -770,18 +852,30 @@ internal class GltfJson {
                 break
             }
             when (val escaped = bytes[++pos].toInt()) {
-                JSON_ESCAPE_BACKSPACE -> result.append('\b')
-                JSON_ESCAPE_FORM_FEED -> result.append('\u000c')
-                JSON_ESCAPE_LINE_FEED -> result.append('\n')
-                JSON_ESCAPE_CARRIAGE_RETURN -> result.append('\r')
-                JSON_ESCAPE_TAB -> result.append('\t')
+                JSON_ESCAPE_BACKSPACE -> {
+                    result.append('\b')
+                }
+                JSON_ESCAPE_FORM_FEED -> {
+                    result.append('\u000c')
+                }
+                JSON_ESCAPE_LINE_FEED -> {
+                    result.append('\n')
+                }
+                JSON_ESCAPE_CARRIAGE_RETURN -> {
+                    result.append('\r')
+                }
+                JSON_ESCAPE_TAB -> {
+                    result.append('\t')
+                }
                 JSON_ESCAPE_UNICODE -> {
                     var code = 0
                     repeat(UNICODE_ESCAPE_DIGITS) { code = code * HEX_RADIX + hex(bytes[++pos].toInt()) }
                     result.append(code.toChar())
                 }
 
-                else -> result.append(escaped.toChar())
+                else -> {
+                    result.append(escaped.toChar())
+                }
             }
             pos++
         }
@@ -797,7 +891,7 @@ internal class GltfJson {
             return stableEmptyInts
         }
         var child = token + 1
-        return Ints(size(token)) { int(child).also { child = next(child) } }
+        return Ints(size(token)) { int(token = child).also { child = next(child) } }
     }
 
     fun floats(token: Int): Floats {
@@ -809,7 +903,7 @@ internal class GltfJson {
             return stableEmptyFloats
         }
         var child = token + 1
-        return Floats(size(token)) { float(child).also { child = next(child) } }
+        return Floats(size(token)) { float(token = child).also { child = next(child) } }
     }
 
     fun raw(token: Int): String? {
@@ -824,8 +918,10 @@ internal class GltfJson {
         return String(
             bytes,
             tokens[token * TOKEN_STRIDE + TOKEN_START] - quote,
-            tokens[token * TOKEN_STRIDE + TOKEN_END] - tokens[token * TOKEN_STRIDE + TOKEN_START] + quote * STRING_DELIMITER_COUNT,
-            Charsets.UTF_8
+            tokens[token * TOKEN_STRIDE + TOKEN_END] -
+                tokens[token * TOKEN_STRIDE + TOKEN_START] +
+                quote * STRING_DELIMITER_COUNT,
+            Charsets.UTF_8,
         )
     }
 

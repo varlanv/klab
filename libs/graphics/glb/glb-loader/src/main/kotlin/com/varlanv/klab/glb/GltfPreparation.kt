@@ -22,8 +22,10 @@ private const val WRAP_REPEAT = 10497
 private const val WRAP_MIRRORED_REPEAT = 33648
 private const val WRAP_CLAMP_TO_EDGE = 33071
 
-internal fun prepareModel(source: KGltf, resolver: ((String) -> Bytes)?): PreparedModel =
-    ModelPreparation(source, resolver).prepare()
+internal fun prepareModel(
+    source: KGltf,
+    resolver: ((String) -> Bytes)?,
+): PreparedModel = ModelPreparation(source = source, resolver = resolver).prepare()
 
 private class ModelPreparation(private val source: KGltf, private val resolver: ((String) -> Bytes)?) {
     private val meshIndices = MutInts(source.meshes.size) { MISSING }
@@ -40,18 +42,20 @@ private class ModelPreparation(private val source: KGltf, private val resolver: 
     private var pixelSize = 0
 
     fun prepare(): PreparedModel {
-        assert(source.skins.isEmpty() && source.animations.isEmpty()) { "Prepared models currently support static scenes" }
+        assert(
+            source.skins.isEmpty() && source.animations.isEmpty(),
+        ) { "Prepared models currently support static scenes" }
         var failure: Throwable? = null
         try {
             val nodes = nodes()
             assert(nodes.isNotEmpty()) { "Scene contains no meshes" }
             val geometry = PreparedGeometry(MutBytes(geometrySize))
             for (plan in primitives) {
-                writePrimitive(plan, geometry)
+                writePrimitive(plan = plan, geometry = geometry)
             }
             val pixels = MutBytes(pixelSize)
             for (index in imageReaders.indices) {
-                imageReaders[index].use { it.copyPixelsTo(pixels, images[index].mips[0].offset) }
+                imageReaders[index].use { it.copyPixelsTo(destination = pixels, offset = images[index].mips[0].offset) }
             }
             return PreparedModel(
                 geometry = geometry,
@@ -116,13 +120,21 @@ private class ModelPreparation(private val source: KGltf, private val resolver: 
                 "Skinning and GPU instancing are not supported yet"
             }
             val transform = MutFloats(MAT4_COMPONENTS)
-            source.copyLocalTransformTo(index, transform)
+            source.copyLocalTransformTo(nodeIndex = index, destination = transform)
             if (node.parent >= 0) {
-                multiplyTransform(checkNotNull(transforms[node.parent]), transform)
+                multiplyTransform(
+                    parent = checkNotNull(transforms[node.parent]),
+                    out = transform,
+                )
             }
             transforms[index] = transform
             if (node.mesh >= 0) {
-                result.add(PreparedNode(mesh(node.mesh), transform))
+                result.add(
+                    PreparedNode(
+                        meshIndex = mesh(node.mesh),
+                        transform = transform,
+                    ),
+                )
             }
             for (child in node.children.indices.reversed()) {
                 pending[pendingSize++] = node.children[child]
@@ -141,7 +153,7 @@ private class ModelPreparation(private val source: KGltf, private val resolver: 
             primitives.add(primitive(sourcePrimitive))
         }
         val preparedIndex = meshes.size
-        meshes.add(PreparedMesh(first, primitives.size - first))
+        meshes.add(PreparedMesh(firstPrimitive = first, primitiveCount = primitives.size - first))
         meshIndices[index] = preparedIndex
         return preparedIndex
     }
@@ -156,10 +168,7 @@ private class ModelPreparation(private val source: KGltf, private val resolver: 
         assert(primitive.accessor(ATTRIBUTE_COLOR) < 0) {
             "Vertex colors are not supported yet"
         }
-        assert(
-            primitive.accessor(ATTRIBUTE_JOINTS) < 0 &&
-                    primitive.accessor(ATTRIBUTE_WEIGHTS) < 0
-        ) {
+        assert(primitive.accessor(ATTRIBUTE_JOINTS) < 0 && primitive.accessor(ATTRIBUTE_WEIGHTS) < 0) {
             "Skinned meshes are not supported yet"
         }
         val position = primitive.accessor(ATTRIBUTE_POSITION)
@@ -170,12 +179,12 @@ private class ModelPreparation(private val source: KGltf, private val resolver: 
         val uv = primitive.accessor(ATTRIBUTE_TEXCOORD)
         val count = source.accessors[position].count
         assert(count > 0)
-        validateAttribute(position, VEC3_COMPONENTS, count)
+        validateAttribute(index = position, components = VEC3_COMPONENTS, count = count)
         if (normal >= 0) {
-            validateAttribute(normal, VEC3_COMPONENTS, count)
+            validateAttribute(index = normal, components = VEC3_COMPONENTS, count = count)
         }
         if (uv >= 0) {
-            validateAttribute(uv, VEC2_COMPONENTS, count)
+            validateAttribute(index = uv, components = VEC2_COMPONENTS, count = count)
         }
         val material = material(primitive.material)
         assert(materials[material].imageIndex < 0 || uv >= 0) {
@@ -205,8 +214,17 @@ private class ModelPreparation(private val source: KGltf, private val resolver: 
             PreparedIndexFormat.Uint16
         }
         val vertexOffset = geometrySize
-        val indexOffset = Math.addExact(vertexOffset, PreparedVertex.byteSize(count))
-        val end = Math.addExact(indexOffset, Math.multiplyExact(indexCount, format.byteSize))
+        val indexOffset = Math.addExact(
+            vertexOffset,
+            PreparedVertex.byteSize(count),
+        )
+        val end = Math.addExact(
+            indexOffset,
+            Math.multiplyExact(
+                indexCount,
+                format.byteSize,
+            ),
+        )
         geometrySize = Math.addExact(end, GEOMETRY_ALIGNMENT - 1) and -GEOMETRY_ALIGNMENT
         return PrimitivePlan(
             prepared = PreparedPrimitive(
@@ -215,7 +233,7 @@ private class ModelPreparation(private val source: KGltf, private val resolver: 
                 indexOffset = indexOffset,
                 indexCount = indexCount,
                 indexFormat = format,
-                materialIndex = material
+                materialIndex = material,
             ),
             position = position,
             normal = normal,
@@ -224,11 +242,14 @@ private class ModelPreparation(private val source: KGltf, private val resolver: 
         )
     }
 
-    private fun validateAttribute(index: Int, components: Int, count: Int) {
+    private fun validateAttribute(
+        index: Int,
+        components: Int,
+        count: Int,
+    ) {
         val accessor = source.accessors[index]
         assert(
-            accessor.type.componentCount() == components &&
-                    accessor.count == count
+            accessor.type.componentCount() == components && accessor.count == count,
         ) { "Invalid mesh attribute layout" }
         validateStorage(accessor)
     }
@@ -243,7 +264,7 @@ private class ModelPreparation(private val source: KGltf, private val resolver: 
         }
         view(accessor.bufferView)
         accessor.sparse?.let {
-            view(it.indicesBufferView);
+            view(it.indicesBufferView)
             view(it.valuesBufferView)
         }
     }
@@ -258,23 +279,25 @@ private class ModelPreparation(private val source: KGltf, private val resolver: 
             geometry.setPosition(
                 vertex = vertex,
                 x = positions.get(
-                    index,
-                    X
+                    vertex = index,
+                    component = X,
                 ),
-                y = positions.get(index, Y),
-                z = positions.get(index, Z)
+                y = positions.get(
+                    vertex = index,
+                    component = Y,
+                ),
+                z = positions.get(
+                    vertex = index,
+                    component = Z,
+                ),
             )
             geometry.setNormal(
                 vertex = vertex,
                 x = normals?.get(index, X) ?: 0f,
                 y = normals?.get(index, Y) ?: 1f,
-                z = normals?.get(index, Z) ?: 0f
+                z = normals?.get(index, Z) ?: 0f,
             )
-            geometry.setUv(
-                vertex = vertex,
-                u = uvs?.get(index, U) ?: 0f,
-                v = uvs?.get(index, V) ?: 0f
-            )
+            geometry.setUv(vertex = vertex, u = uvs?.get(index, U) ?: 0f, v = uvs?.get(index, V) ?: 0f)
         }
         val accessor = plan.indices.takeIf { it >= 0 }?.let { source.accessors[it] }
         val sparseIndices = if (accessor?.sparse != null) {
@@ -285,12 +308,11 @@ private class ModelPreparation(private val source: KGltf, private val resolver: 
             null
         }
         val view = accessor?.bufferView?.takeIf { it >= 0 }?.let { source.bufferViews[it] }
-        val start =
-            if (accessor != null && view != null) {
-                source.bufferOffsets[view.buffer] + view.offset + accessor.offset
-            } else {
-                0
-            }
+        val start = if (accessor != null && view != null) {
+            source.bufferOffsets[view.buffer] + view.offset + accessor.offset
+        } else {
+            0
+        }
         var target = primitive.indexOffset
         for (index in 0 until primitive.indexCount) {
             val value = when {
@@ -298,16 +320,16 @@ private class ModelPreparation(private val source: KGltf, private val resolver: 
                 sparseIndices != null -> sparseIndices[index].toLong() and UINT32_MASK
                 view == null -> 0L
                 else -> accessor.componentType.readUnsigned(
-                    source.bufferSources[view.buffer],
-                    start + index * accessor.stride
+                    bytes = source.bufferSources[view.buffer],
+                    offset = start + index * accessor.stride,
                 )
             }
             assert(value < primitive.vertexCount.toLong()) {
                 "Index exceeds vertex count"
             }
             when (primitive.indexFormat) {
-                PreparedIndexFormat.Uint16 -> geometry.bytes.setPackedShort(target, value.toShort())
-                PreparedIndexFormat.Uint32 -> geometry.bytes.setPackedInt(target, value.toInt())
+                PreparedIndexFormat.Uint16 -> geometry.bytes.setPackedShort(idx = target, value = value.toShort())
+                PreparedIndexFormat.Uint32 -> geometry.bytes.setPackedInt(idx = target, value = value.toInt())
             }
             target += primitive.indexFormat.byteSize
         }
@@ -326,19 +348,13 @@ private class ModelPreparation(private val source: KGltf, private val resolver: 
                 offset = source.bufferOffsets[view.buffer] + view.offset + accessor.offset,
                 stride = accessor.stride,
                 values = null,
-                components = 0
+                components = 0,
             )
         }
         val components = accessor.type.componentCount()
         val values = MutFloats(Math.multiplyExact(accessor.count, components))
-        source.copyFloatsTo(index, values)
-        return FloatAttribute(
-            bytes = null,
-            offset = 0,
-            stride = 0,
-            values = values,
-            components = components
-        )
+        source.copyFloatsTo(accessorIndex = index, destination = values)
+        return FloatAttribute(bytes = null, offset = 0, stride = 0, values = values, components = components)
     }
 
     private fun material(index: Int): Int {
@@ -383,7 +399,7 @@ private class ModelPreparation(private val source: KGltf, private val resolver: 
                     -1f
                 },
                 unlit = material?.unlit ?: false,
-            )
+            ),
         )
         materialIndices[key] = preparedIndex
         return preparedIndex
@@ -393,7 +409,7 @@ private class ModelPreparation(private val source: KGltf, private val resolver: 
         if (imageIndices[index] >= 0) {
             return imageIndices[index]
         }
-        val reader = openPreparedImage(source, index, resolver)
+        val reader = openPreparedImage(source = source, index = index, resolver = resolver)
         imageReaders.add(reader)
         val size = reader.byteSize
         val offset = pixelSize
@@ -401,11 +417,11 @@ private class ModelPreparation(private val source: KGltf, private val resolver: 
         val preparedIndex = images.size
         images.add(
             PreparedImage(
-                reader.width,
-                reader.height,
-                PreparedImageFormat.Rgba8Srgb,
-                arrayOf(PreparedMip(offset, size))
-            )
+                width = reader.width,
+                height = reader.height,
+                format = PreparedImageFormat.Rgba8Srgb,
+                mips = arrayOf(PreparedMip(offset = offset, byteSize = size)),
+            ),
         )
         imageIndices[index] = preparedIndex
         return preparedIndex
@@ -418,18 +434,21 @@ private class ModelPreparation(private val source: KGltf, private val resolver: 
         }
         val sampler = index.takeIf { it >= 0 }?.let { source.samplers[it] }
         val prepared = PreparedSampler(
-            filter(sampler?.minFilter ?: FILTER_LINEAR),
-            filter(sampler?.magFilter ?: FILTER_LINEAR),
-            PreparedMipmapMode.None, // Preparation currently produces only the base mip.
-            addressMode(sampler?.wrapS ?: WRAP_REPEAT),
-            addressMode(sampler?.wrapT ?: WRAP_REPEAT),
+            minFilter = filter(sampler?.minFilter ?: FILTER_LINEAR),
+            magFilter = filter(sampler?.magFilter ?: FILTER_LINEAR),
+            mipmapMode = PreparedMipmapMode.None,
+            // Preparation currently produces only the base mip.
+            addressModeU = addressMode(sampler?.wrapS ?: WRAP_REPEAT),
+            addressModeV = addressMode(sampler?.wrapT ?: WRAP_REPEAT),
         )
-        val preparedIndex = samplers.indexOfFirst {
-            it.minFilter == prepared.minFilter &&
+        val preparedIndex = samplers
+            .indexOfFirst {
+                it.minFilter == prepared.minFilter &&
                     it.magFilter == prepared.magFilter &&
                     it.addressModeU == prepared.addressModeU &&
                     it.addressModeV == prepared.addressModeV
-        }.takeIf { it >= 0 } ?: samplers.size.also { samplers.add(prepared) }
+            }
+            .takeIf { it >= 0 } ?: samplers.size.also { samplers.add(prepared) }
         samplerIndices[key] = preparedIndex
         return preparedIndex
     }
@@ -440,7 +459,7 @@ private class PrimitivePlan(
     val position: Int,
     val normal: Int,
     val uv: Int,
-    val indices: Int
+    val indices: Int,
 )
 
 private class FloatAttribute(
@@ -448,21 +467,23 @@ private class FloatAttribute(
     val offset: Int,
     val stride: Int,
     val values: Floats?,
-    val components: Int
+    val components: Int,
 ) {
-    fun get(vertex: Int, component: Int): Float =
-        if (values != null) {
-            values[vertex * components + component]
-        } else {
-            bytes!!.getPackedFloat(offset + vertex * stride + component * Float.SIZE_BYTES)
-        }
+    fun get(vertex: Int, component: Int): Float = if (values != null) {
+        values[vertex * components + component]
+    } else {
+        bytes!!.getPackedFloat(offset + vertex * stride + component * Float.SIZE_BYTES)
+    }
 }
 
 private fun KPrimitive.accessor(semantic: Int): Int =
     attributes.firstOrNull { it.semantic == semantic && it.set == 0 }?.accessor ?: MISSING
 
-private val unsignedIndexTypes =
-    intArrayOf(GLTF_COMPONENT_UNSIGNED_BYTE, GLTF_COMPONENT_UNSIGNED_SHORT, GLTF_COMPONENT_UNSIGNED_INT)
+private val unsignedIndexTypes = intArrayOf(
+    GLTF_COMPONENT_UNSIGNED_BYTE,
+    GLTF_COMPONENT_UNSIGNED_SHORT,
+    GLTF_COMPONENT_UNSIGNED_INT,
+)
 private const val UINT32_MASK = 0xffffffffL
 
 private fun filter(value: Int): PreparedFilter = when (value) {

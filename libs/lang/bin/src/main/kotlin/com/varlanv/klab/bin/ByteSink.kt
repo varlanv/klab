@@ -39,7 +39,7 @@ class ReusableByteArraySink(initialCapacity: DataSize) : ByteSink {
         assert(!(offset < 0 || length < 0 || offset > source.size - length))
         ensureCapacity(length)
         val pos = position
-        source.copyInto(destination = bytes, destinationOffset = pos, startIndex = offset, endIndex = offset + length)
+        source.copyInto(bytes, pos, offset, offset + length)
         position = pos + length
     }
 

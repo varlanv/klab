@@ -17,7 +17,6 @@ class Camera3D(
     nearPlane: Float = 0.1f,
     farPlane: Float = 100f,
 ) {
-
     private var basisInitialized = false
 
     var x = x
@@ -67,7 +66,11 @@ class Camera3D(
         setRotation(yawRadians = this.yawRadians, pitchRadians = this.pitchRadians)
     }
 
-    internal fun writeUniforms(destination: MemorySegment, width: Int, height: Int) {
+    internal fun writeUniforms(
+        destination: MemorySegment,
+        width: Int,
+        height: Int,
+    ) {
         require(width > 0 && height > 0)
         destination.asSlice(0, 80).fill(0)
         destination.set(ValueLayout.JAVA_FLOAT, 0L, width.toFloat())
@@ -89,19 +92,31 @@ class Camera3D(
         destination.set(ValueLayout.JAVA_FLOAT, 72L, forwardZ)
     }
 
-    fun setPosition(x: Float, y: Float, z: Float) {
+    fun setPosition(
+        x: Float,
+        y: Float,
+        z: Float,
+    ) {
         require(x.isFinite() && y.isFinite() && z.isFinite())
         this.x = x
         this.y = y
         this.z = z
     }
 
-    fun translate(dx: Float, dy: Float, dz: Float) {
+    fun translate(
+        dx: Float,
+        dy: Float,
+        dz: Float,
+    ) {
         require(dx.isFinite() && dy.isFinite() && dz.isFinite())
         setPosition(x = x + dx, y = y + dy, z = z + dz)
     }
 
-    fun setProjection(verticalFovDegrees: Float, nearPlane: Float, farPlane: Float) {
+    fun setProjection(
+        verticalFovDegrees: Float,
+        nearPlane: Float,
+        farPlane: Float,
+    ) {
         require(verticalFovDegrees.isFinite() && verticalFovDegrees > 0f && verticalFovDegrees < 180f)
         require(nearPlane.isFinite() && farPlane.isFinite() && nearPlane > 0f && farPlane > nearPlane)
         val focal = (1.0 / tan(verticalFovDegrees.toDouble() * Math.PI / 360.0)).toFloat()
@@ -114,16 +129,24 @@ class Camera3D(
 
     fun rotate(yawDelta: Float, pitchDelta: Float) {
         require(yawDelta.isFinite() && pitchDelta.isFinite())
-        if (yawDelta == 0f && pitchDelta == 0f) return
+        if (yawDelta == 0f && pitchDelta == 0f) {
+            return
+        }
         setRotation(yawRadians = yawRadians + yawDelta, pitchRadians = pitchRadians + pitchDelta)
     }
 
     fun setRotation(yawRadians: Float, pitchRadians: Float) {
         require(yawRadians.isFinite() && pitchRadians.isFinite())
         val wrapped = (yawRadians.toDouble() + Math.PI) % TWO_PI
-        val yaw = ((if (wrapped < 0.0) wrapped + TWO_PI else wrapped) - Math.PI).toFloat()
-        val pitch = pitchRadians.coerceIn(minimumValue = -MAX_PITCH, maximumValue = MAX_PITCH)
-        if (basisInitialized && yaw == this.yawRadians && pitch == this.pitchRadians) return
+        val yaw = ((if (wrapped < 0.0) {
+            wrapped + TWO_PI
+        } else {
+            wrapped
+        }) - Math.PI).toFloat()
+        val pitch = pitchRadians.coerceIn(-MAX_PITCH, MAX_PITCH)
+        if (basisInitialized && yaw == this.yawRadians && pitch == this.pitchRadians) {
+            return
+        }
         this.yawRadians = yaw
         this.pitchRadians = pitch
         val sinYaw = sin(this.yawRadians)

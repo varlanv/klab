@@ -7,39 +7,63 @@ import com.varlanv.klab.collections.MutInts
 import kotlin.math.floor
 
 private val supportedRequiredExtensions = setOf(
-    "KHR_mesh_quantization", "KHR_lights_punctual", "KHR_materials_variants", "KHR_texture_transform",
-    "KHR_texture_basisu", "EXT_texture_webp", "EXT_mesh_gpu_instancing",
-    "KHR_materials_pbrSpecularGlossiness", "KHR_materials_unlit", "KHR_materials_clearcoat",
-    "KHR_materials_transmission", "KHR_materials_ior", "KHR_materials_specular", "KHR_materials_volume",
-    "KHR_materials_sheen", "KHR_materials_emissive_strength", "KHR_materials_iridescence",
-    "KHR_materials_diffuse_transmission", "KHR_materials_anisotropy", "KHR_materials_dispersion",
+    "KHR_mesh_quantization",
+    "KHR_lights_punctual",
+    "KHR_materials_variants",
+    "KHR_texture_transform",
+    "KHR_texture_basisu",
+    "EXT_texture_webp",
+    "EXT_mesh_gpu_instancing",
+    "KHR_materials_pbrSpecularGlossiness",
+    "KHR_materials_unlit",
+    "KHR_materials_clearcoat",
+    "KHR_materials_transmission",
+    "KHR_materials_ior",
+    "KHR_materials_specular",
+    "KHR_materials_volume",
+    "KHR_materials_sheen",
+    "KHR_materials_emissive_strength",
+    "KHR_materials_iridescence",
+    "KHR_materials_diffuse_transmission",
+    "KHR_materials_anisotropy",
+    "KHR_materials_dispersion",
 )
 
 internal fun validateVersion(asset: KAsset) {
-    if (asset.version == "2.0" && (asset.minVersion == null || asset.minVersion == "2.0")) return
+    if (asset.version == "2.0" && (asset.minVersion == null || asset.minVersion == "2.0")) {
+        return
+    }
     fun version(text: String): Pair<Int, Int> {
         assert(text.matches(Regex("[0-9]+\\.[0-9]+"))) { "Invalid glTF version" }
         val parts = text.split('.')
         return (parts[0].toIntOrNull() ?: error("Invalid glTF major version")) to
-                (parts[1].toIntOrNull() ?: error("Invalid glTF minor version"))
+            (parts[1].toIntOrNull() ?: error("Invalid glTF minor version"))
     }
 
     val declared = version(asset.version!!)
     assert(declared.first == 2) { "Unsupported glTF major version" }
     asset.minVersion?.let {
         val minimum = version(it)
-        assert(minimum.first == 2 && minimum.second == 0 && minimum.second <= declared.second) { "Unsupported minimum glTF version" }
+        assert(
+            minimum.first == 2 && minimum.second == 0 && minimum.second <= declared.second,
+        ) { "Unsupported minimum glTF version" }
     }
 }
 
 internal fun validateRequiredExtensions(model: KGltf) {
-    if (model.extensionsUsed.size > 1) assert(model.extensionsUsed.toSet().size == model.extensionsUsed.size)
-    if (model.extensionsRequired.size > 1) assert(model.extensionsRequired.toSet().size == model.extensionsRequired.size)
+    if (model.extensionsUsed.size > 1) {
+        assert(model.extensionsUsed.toSet().size == model.extensionsUsed.size)
+    }
+    if (model.extensionsRequired.size > 1) {
+        assert(model.extensionsRequired.toSet().size == model.extensionsRequired.size)
+    }
     for (extension in model.extensionsRequired) {
         assert(extension in model.extensionsUsed) { "Required extension is not listed in extensionsUsed: $extension" }
         assert(extension in supportedRequiredExtensions) { "Unsupported required extension: $extension" }
     }
-    if ("KHR_mesh_quantization" in model.extensionsUsed) assert("KHR_mesh_quantization" in model.extensionsRequired)
+    if ("KHR_mesh_quantization" in model.extensionsUsed) {
+        assert("KHR_mesh_quantization" in model.extensionsRequired)
+    }
 }
 
 internal fun validateAccessorBounds(accessor: KAccessor) {
@@ -47,27 +71,33 @@ internal fun validateAccessorBounds(accessor: KAccessor) {
     val maximum: Double
     when (accessor.componentType.value) {
         GLTF_COMPONENT_BYTE -> {
-            minimum = -128.0; maximum = 127.0
+            minimum = -128.0
+            maximum = 127.0
         }
 
         GLTF_COMPONENT_UNSIGNED_BYTE -> {
-            minimum = 0.0; maximum = 255.0
+            minimum = 0.0
+            maximum = 255.0
         }
 
         GLTF_COMPONENT_SHORT -> {
-            minimum = -32768.0; maximum = 32767.0
+            minimum = -32768.0
+            maximum = 32767.0
         }
 
         GLTF_COMPONENT_UNSIGNED_SHORT -> {
-            minimum = 0.0; maximum = 65535.0
+            minimum = 0.0
+            maximum = 65535.0
         }
 
         GLTF_COMPONENT_UNSIGNED_INT -> {
-            minimum = 0.0; maximum = 4294967296.0
+            minimum = 0.0
+            maximum = 4294967296.0
         }
 
         else -> {
-            minimum = -Float.MAX_VALUE.toDouble(); maximum = Float.MAX_VALUE.toDouble()
+            minimum = -Float.MAX_VALUE.toDouble()
+            maximum = Float.MAX_VALUE.toDouble()
         }
     }
     fun bounds(values: Floats) {
@@ -80,11 +110,18 @@ internal fun validateAccessorBounds(accessor: KAccessor) {
     }
     bounds(accessor.min)
     bounds(accessor.max)
-    if (accessor.min.isNotEmpty() && accessor.max.isNotEmpty())
-        for (i in accessor.min.indices) assert(accessor.min[i] <= accessor.max[i]) { "Accessor minimum exceeds maximum" }
+    if (accessor.min.isNotEmpty() && accessor.max.isNotEmpty()) {
+        for (i in accessor.min.indices) assert(
+            accessor.min[i] <= accessor.max[i],
+        ) { "Accessor minimum exceeds maximum" }
+    }
 }
 
-internal fun validateAttributes(model: KGltf, attributes: Array<KAttribute>, morph: Boolean) {
+internal fun validateAttributes(
+    model: KGltf,
+    attributes: Array<KAttribute>,
+    morph: Boolean,
+) {
     val quantized = "KHR_mesh_quantization" in model.extensionsRequired
     for (attribute in attributes) {
         val accessor = model.accessors[attribute.accessor]
@@ -98,30 +135,59 @@ internal fun validateAttributes(model: KGltf, attributes: Array<KAttribute>, mor
             assert(attribute.semantic in 1..7) { "Invalid vertex semantic $name" }
             assert(!morph || attribute.semantic in 1..5) { "Invalid morph semantic" }
             val valid = when (attribute.semantic) {
-                1 -> accessor.type.value == GLTF_TYPE_VEC3 && (float || quantized && (signedSmall || !morph && unsignedSmall))
+                1 -> accessor.type.value == GLTF_TYPE_VEC3 &&
+                    (float || quantized && (signedSmall || !morph && unsignedSmall))
                 2 -> accessor.type.value == GLTF_TYPE_VEC3 && (float || quantized && signedSmall && normalized)
-                3 -> accessor.type.value == (if (morph) GLTF_TYPE_VEC3 else GLTF_TYPE_VEC4) && (float || quantized && signedSmall && normalized)
-                4 -> accessor.type.value == GLTF_TYPE_VEC2 && (float || unsignedSmall && normalized ||
-                        (morph || quantized) && signedSmall && normalized || quantized && (signedSmall || !morph && unsignedSmall))
+                3 -> accessor.type.value == (if (morph) {
+                    GLTF_TYPE_VEC3
+                } else {
+                    GLTF_TYPE_VEC4
+                }) && (float || quantized && signedSmall && normalized)
+                4 -> accessor.type.value == GLTF_TYPE_VEC2 &&
+                    (float ||
+                        unsignedSmall &&
+                        normalized ||
+                        (morph || quantized) &&
+                        signedSmall &&
+                        normalized ||
+                        quantized &&
+                        (signedSmall || !morph && unsignedSmall))
 
-                5 -> accessor.type.value in GLTF_TYPE_VEC3..GLTF_TYPE_VEC4 && (float || unsignedSmall && normalized || morph && signedSmall && normalized)
+                5 -> accessor.type.value in GLTF_TYPE_VEC3..GLTF_TYPE_VEC4 &&
+                    (float || unsignedSmall && normalized || morph && signedSmall && normalized)
                 6 -> accessor.type.value == GLTF_TYPE_VEC4 && unsignedSmall && !normalized
                 7 -> accessor.type.value == GLTF_TYPE_VEC4 && (float || unsignedSmall && normalized)
                 else -> false
             }
             assert(valid) { "Invalid accessor type for $name" }
         }
-        assert(type != GLTF_COMPONENT_UNSIGNED_INT && accessor.type.value <= GLTF_TYPE_VEC4) { "Invalid vertex component type" }
+        assert(
+            type != GLTF_COMPONENT_UNSIGNED_INT && accessor.type.value <= GLTF_TYPE_VEC4,
+        ) { "Invalid vertex component type" }
         if (accessor.bufferView >= 0) {
             val view = model.bufferViews[accessor.bufferView]
-            assert(view.target != 34963 && accessor.offset % 4 == 0 && accessor.stride % 4 == 0) { "Invalid vertex alignment or target" }
+            assert(
+                view.target != 34963 && accessor.offset % 4 == 0 && accessor.stride % 4 == 0,
+            ) { "Invalid vertex alignment or target" }
         }
-        if (attribute.semantic == 1) assert(accessor.min.isNotEmpty() && accessor.max.isNotEmpty()) { "POSITION requires min/max" }
+        if (attribute.semantic == 1) {
+            assert(accessor.min.isNotEmpty() && accessor.max.isNotEmpty()) { "POSITION requires min/max" }
+        }
     }
-    if (!morph) for (attribute in attributes) {
-        if (attribute.semantic == 6 || attribute.semantic == 7) assert(attributes.any {
-            it.set == attribute.set && it.semantic == if (attribute.semantic == 6) 7 else 6
-        }) { "JOINTS and WEIGHTS sets must match" }
+    if (!morph) {
+        for (attribute in attributes) {
+            if (attribute.semantic == 6 || attribute.semantic == 7) {
+                assert(
+                    attributes.any {
+                        it.set == attribute.set && it.semantic == if (attribute.semantic == 6) {
+                            7
+                        } else {
+                            6
+                        }
+                    },
+                ) { "JOINTS and WEIGHTS sets must match" }
+            }
+        }
     }
 }
 
@@ -134,7 +200,7 @@ internal fun validateTopology(mode: Int, count: Int) {
             4 -> count >= 3 && count % 3 == 0
             5, 6 -> count >= 3
             else -> false
-        }
+        },
     ) { "Invalid primitive element count" }
 }
 
@@ -142,12 +208,15 @@ internal fun validateInstancing(model: KGltf, node: KNode) {
     for (attribute in node.instancing) {
         val accessor = model.accessors[attribute.accessor]
         when (attribute.name) {
-            "TRANSLATION", "SCALE" -> assert(accessor.type.value == GLTF_TYPE_VEC3 && accessor.componentType.value == GLTF_COMPONENT_FLOAT)
+            "TRANSLATION", "SCALE" -> assert(
+                accessor.type.value == GLTF_TYPE_VEC3 && accessor.componentType.value == GLTF_COMPONENT_FLOAT,
+            )
             "ROTATION" -> assert(
                 accessor.type.value == GLTF_TYPE_VEC4 &&
-                        (accessor.componentType.value == GLTF_COMPONENT_FLOAT ||
-                                accessor.normalized && (accessor.componentType.value == GLTF_COMPONENT_BYTE ||
-                                accessor.componentType.value == GLTF_COMPONENT_SHORT))
+                    (accessor.componentType.value == GLTF_COMPONENT_FLOAT ||
+                        accessor.normalized &&
+                        (accessor.componentType.value == GLTF_COMPONENT_BYTE ||
+                            accessor.componentType.value == GLTF_COMPONENT_SHORT)),
             )
 
             else -> assert(attribute.name.startsWith('_')) { "Invalid instance attribute" }
@@ -170,47 +239,62 @@ internal class GltfValidationScratch {
     val animationValue: MutFloats = MutFloats(1)
 
     fun uniqueNodes(indices: Ints, count: Int) {
-        if (nodeMarks.size < count) nodeMarks = MutInts(count)
+        if (nodeMarks.size < count) {
+            nodeMarks = MutInts(count)
+        }
         if (nodeEpoch == Int.MAX_VALUE) {
-            nodeMarks.fill(0); nodeEpoch = 0
+            nodeMarks.fill(0)
+            nodeEpoch = 0
         }
         nodeEpoch++
         for (index in indices) {
-            reference(index, count, false)
+            reference(index = index, size = count, optional = false)
             assert(nodeMarks[index] != nodeEpoch) { "Duplicate node reference" }
             nodeMarks[index] = nodeEpoch
         }
     }
 
     fun beginAnimations(accessors: Int, nodes: Int) {
-        if (inputMarks.size < accessors) inputMarks = MutInts(accessors)
-        else inputMarks.fill(0, 0, accessors)
+        if (inputMarks.size < accessors) {
+            inputMarks = MutInts(accessors)
+        } else {
+            inputMarks.fill(0, 0, accessors)
+        }
         val count = Math.multiplyExact(nodes, 4)
-        if (targetMarks.size < count) targetMarks = MutInts(count)
+        if (targetMarks.size < count) {
+            targetMarks = MutInts(count)
+        }
     }
 
     fun firstInput(index: Int): Boolean {
-        if (inputMarks[index] != 0) return false
+        if (inputMarks[index] != 0) {
+            return false
+        }
         inputMarks[index] = 1
         return true
     }
 
     fun beginTargets() {
         if (targetEpoch == Int.MAX_VALUE) {
-            targetMarks.fill(0); targetEpoch = 0
+            targetMarks.fill(0)
+            targetEpoch = 0
         }
         targetEpoch++
     }
 
     fun firstTarget(node: Int, path: Int): Boolean {
         val index = node * 4 + path - GLTF_PATH_TRANSLATION
-        if (targetMarks[index] == targetEpoch) return false
+        if (targetMarks[index] == targetEpoch) {
+            return false
+        }
         targetMarks[index] = targetEpoch
         return true
     }
 
     fun validateSkinHierarchy(model: KGltf) {
-        if (model.skins.isEmpty()) return
+        if (model.skins.isEmpty()) {
+            return
+        }
         val count = model.nodes.size
         if (roots.size < count) {
             roots = MutInts(count)
@@ -221,7 +305,9 @@ internal class GltfValidationScratch {
         }
         var used = 0
         for (root in model.nodes.indices) {
-            if (model.nodes[root].parent >= 0) continue
+            if (model.nodes[root].parent >= 0) {
+                continue
+            }
             var pending = 1
             stack[0] = root
             while (pending > 0) {
@@ -238,23 +324,29 @@ internal class GltfValidationScratch {
         for (index in used - 1 downTo 0) {
             val node = order[index]
             val parent = model.nodes[node].parent
-            if (parent >= 0) ends[parent] = maxOf(ends[parent], ends[node])
+            if (parent >= 0) {
+                ends[parent] = maxOf(ends[parent], ends[node])
+            }
         }
         for (skin in model.skins) {
             val root = roots[skin.joints[0]]
             for (joint in skin.joints) {
                 assert(roots[joint] == root) { "Skin joints require a common ancestor" }
-                if (skin.skeleton >= 0) assert(entries[joint] in entries[skin.skeleton]..ends[skin.skeleton]) {
-                    "Skeleton must be an ancestor of all joints"
+                if (skin.skeleton >= 0) {
+                    assert(entries[joint] in entries[skin.skeleton]..ends[skin.skeleton]) {
+                        "Skeleton must be an ancestor of all joints"
+                    }
                 }
             }
         }
         for (scene in model.scenes) {
-            uniqueNodes(scene.nodes, count)
+            uniqueNodes(indices = scene.nodes, count = count)
             for (root in scene.nodes) for (index in entries[root]..ends[root]) {
                 val skin = model.nodes[order[index]].skin
-                if (skin >= 0) assert(nodeMarks[roots[model.skins[skin].joints[0]]] == nodeEpoch) {
-                    "Skin joint is outside the mesh scene"
+                if (skin >= 0) {
+                    assert(nodeMarks[roots[model.skins[skin].joints[0]]] == nodeEpoch) {
+                        "Skin joint is outside the mesh scene"
+                    }
                 }
             }
         }
@@ -263,7 +355,7 @@ internal class GltfValidationScratch {
 
 internal fun validateResources(model: KGltf) {
     for (image in model.images) {
-        reference(image.bufferView, model.bufferViews.size)
+        reference(index = image.bufferView, size = model.bufferViews.size)
         assert((image.uri != null) != (image.bufferView >= 0)) { "Image requires exactly one URI or buffer view" }
         assert(image.bufferView < 0 || image.mimeType != null) { "Embedded image requires MIME type" }
         if (image.bufferView >= 0) {
@@ -273,14 +365,22 @@ internal fun validateResources(model: KGltf) {
     }
     for (texture in model.textures) {
         fun image(index: Int, mime: String?) {
-            if (index < 0) return
-            reference(index, model.images.size, false)
+            if (index < 0) {
+                return
+            }
+            reference(index = index, size = model.images.size, optional = false)
             val declared = model.images[index].mimeType ?: return
-            assert(if (mime == null) declared == "image/png" || declared == "image/jpeg" else declared == mime) { "Image MIME does not match texture source" }
+            assert(
+                if (mime == null) {
+                    declared == "image/png" || declared == "image/jpeg"
+                } else {
+                    declared == mime
+                },
+            ) { "Image MIME does not match texture source" }
         }
-        image(texture.image, null)
-        image(texture.basisuImage, "image/ktx2")
-        image(texture.webpImage, "image/webp")
+        image(index = texture.image, mime = null)
+        image(index = texture.basisuImage, mime = "image/ktx2")
+        image(index = texture.webpImage, mime = "image/webp")
     }
     for (sampler in model.samplers) {
         assert(sampler.magFilter == 0 || sampler.magFilter in 9728..9729)
@@ -302,66 +402,120 @@ internal fun validateMaterial(material: KMaterial) {
     color(material.emissiveFactor)
     assert(material.alphaCutoff >= 0)
     material.occlusionTexture?.let { unit(it.scale) }
-    material.metallicRoughness?.let { color(it.baseColorFactor); unit(it.metallicFactor); unit(it.roughnessFactor) }
-    material.specularGlossiness?.let { color(it.diffuseFactor); color(it.specularFactor); unit(it.glossinessFactor) }
-    material.clearcoat?.let { unit(it.factor); unit(it.roughnessFactor) }
+    material.metallicRoughness?.let {
+        color(it.baseColorFactor)
+        unit(it.metallicFactor)
+        unit(it.roughnessFactor)
+    }
+    material.specularGlossiness?.let {
+        color(it.diffuseFactor)
+        color(it.specularFactor)
+        unit(it.glossinessFactor)
+    }
+    material.clearcoat?.let {
+        unit(it.factor)
+        unit(it.roughnessFactor)
+    }
     material.transmission?.let { unit(it.factor) }
     material.ior?.let { assert(it == 0f || it >= 1f) }
-    material.specular?.let { unit(it.factor); color(it.colorFactor) }
-    material.volume?.let { assert(it.thicknessFactor >= 0 && it.attenuationDistance > 0); color(it.attenuationColor) }
-    material.sheen?.let { color(it.colorFactor); unit(it.roughnessFactor) }
+    material.specular?.let {
+        unit(it.factor)
+        color(it.colorFactor)
+    }
+    material.volume?.let {
+        assert(it.thicknessFactor >= 0 && it.attenuationDistance > 0)
+        color(it.attenuationColor)
+    }
+    material.sheen?.let {
+        color(it.colorFactor)
+        unit(it.roughnessFactor)
+    }
     material.emissiveStrength?.let { assert(it >= 0) }
-    material.iridescence?.let { unit(it.factor); assert(it.ior >= 1 && it.thicknessMin >= 0 && it.thicknessMax >= it.thicknessMin) }
-    material.diffuseTransmission?.let { unit(it.factor); color(it.colorFactor) }
+    material.iridescence?.let {
+        unit(it.factor)
+        assert(it.ior >= 1 && it.thicknessMin >= 0 && it.thicknessMax >= it.thicknessMin)
+    }
+    material.diffuseTransmission?.let {
+        unit(it.factor)
+        color(it.colorFactor)
+    }
     material.anisotropy?.let { unit(it.strength) }
     material.dispersion?.let { assert(it >= 0) }
-    if (material.unlit) assert(material.specularGlossiness == null && material.emissiveStrength == null)
-    if (material.unlit || material.specularGlossiness != null) assert(
-        material.clearcoat == null && material.ior == null && material.specular == null && material.transmission == null && material.volume == null &&
-                material.sheen == null && material.iridescence == null && material.anisotropy == null &&
-                material.diffuseTransmission == null && material.dispersion == null
-    ) { "Incompatible material extensions" }
+    if (material.unlit) {
+        assert(material.specularGlossiness == null && material.emissiveStrength == null)
+    }
+    if (material.unlit || material.specularGlossiness != null) {
+        assert(
+            material.clearcoat == null &&
+                material.ior == null &&
+                material.specular == null &&
+                material.transmission == null &&
+                material.volume == null &&
+                material.sheen == null &&
+                material.iridescence == null &&
+                material.anisotropy == null &&
+                material.diffuseTransmission == null &&
+                material.dispersion == null,
+        ) { "Incompatible material extensions" }
+    }
 }
 
 internal fun validateAnimations(model: KGltf, scratch: GltfValidationScratch) {
-    if (model.animations.isEmpty()) return
+    if (model.animations.isEmpty()) {
+        return
+    }
     val value = scratch.animationValue
     scratch.beginAnimations(accessors = model.accessors.size, nodes = model.nodes.size)
     for (animation in model.animations) {
         assert(animation.samplers.isNotEmpty() && animation.channels.isNotEmpty())
         for (sampler in animation.samplers) {
-            reference(sampler.input, model.accessors.size, false)
-            reference(sampler.output, model.accessors.size, false)
+            reference(index = sampler.input, size = model.accessors.size, optional = false)
+            reference(index = sampler.output, size = model.accessors.size, optional = false)
             val input = model.accessors[sampler.input]
             assert(
                 input.type.value == GLTF_TYPE_SCALAR &&
-                        input.componentType.value == GLTF_COMPONENT_FLOAT &&
-                        input.min.isNotEmpty() && input.max.isNotEmpty()
+                    input.componentType.value == GLTF_COMPONENT_FLOAT &&
+                    input.min.isNotEmpty() &&
+                    input.max.isNotEmpty(),
             ) { "Invalid animation input" }
-            assert(sampler.interpolation != GLTF_INTERPOLATION_CUBIC_SPLINE || input.count >= 2) { "Cubic spline requires two keyframes" }
+            assert(
+                sampler.interpolation != GLTF_INTERPOLATION_CUBIC_SPLINE || input.count >= 2,
+            ) { "Cubic spline requires two keyframes" }
             var previous = -1f
-            if (scratch.firstInput(sampler.input)) repeat(input.count) { element ->
-                model.readFloats(sampler.input, element, value)
-                assert(value[0] >= 0 && value[0] > previous) { "Animation times must increase and be nonnegative" }
-                if (element == 0) assert(input.min[0] == value[0]) { "Animation minimum does not match input" }
-                previous = value[0]
-                if (element == input.count - 1) assert(input.max[0] == value[0]) { "Animation maximum does not match input" }
+            if (scratch.firstInput(sampler.input)) {
+                repeat(input.count) { element ->
+                    model.readFloats(accessorIndex = sampler.input, elementIndex = element, destination = value)
+                    assert(value[0] >= 0 && value[0] > previous) { "Animation times must increase and be nonnegative" }
+                    if (element == 0) {
+                        assert(input.min[0] == value[0]) { "Animation minimum does not match input" }
+                    }
+                    previous = value[0]
+                    if (element == input.count - 1) {
+                        assert(input.max[0] == value[0]) { "Animation maximum does not match input" }
+                    }
+                }
             }
-            if (input.bufferView >= 0) validateUnstridedView(model.bufferViews[input.bufferView])
+            if (input.bufferView >= 0) {
+                validateUnstridedView(model.bufferViews[input.bufferView])
+            }
             val output = model.accessors[sampler.output]
-            if (output.bufferView >= 0) validateUnstridedView(model.bufferViews[output.bufferView])
+            if (output.bufferView >= 0) {
+                validateUnstridedView(model.bufferViews[output.bufferView])
+            }
         }
         scratch.beginTargets()
         for (channel in animation.channels) {
-            reference(channel.sampler, animation.samplers.size, false)
-            reference(channel.targetNode, model.nodes.size)
+            reference(index = channel.sampler, size = animation.samplers.size, optional = false)
+            reference(index = channel.targetNode, size = model.nodes.size)
             assert(channel.targetPath in GLTF_PATH_TRANSLATION..GLTF_PATH_WEIGHTS)
-            if (channel.targetNode < 0) continue
+            if (channel.targetNode < 0) {
+                continue
+            }
             assert(
                 scratch.firstTarget(
                     node = channel.targetNode,
-                    path = channel.targetPath
-                )
+                    path = channel.targetPath,
+                ),
             ) { "Duplicate animation target" }
             val node = model.nodes[channel.targetNode]
             assert(!node.hasMatrix) { "Animated node cannot define matrix" }
@@ -374,8 +528,11 @@ internal fun validateAnimations(model: KGltf, scratch: GltfValidationScratch) {
             }
             val packed = channel.targetPath == GLTF_PATH_ROTATION || channel.targetPath == GLTF_PATH_WEIGHTS
             assert(
-                output.type.value == expectedType && (output.componentType.value == GLTF_COMPONENT_FLOAT || packed && output.normalized &&
-                        output.componentType.value in GLTF_COMPONENT_BYTE..GLTF_COMPONENT_UNSIGNED_SHORT)
+                output.type.value == expectedType &&
+                    (output.componentType.value == GLTF_COMPONENT_FLOAT ||
+                        packed &&
+                        output.normalized &&
+                        output.componentType.value in GLTF_COMPONENT_BYTE..GLTF_COMPONENT_UNSIGNED_SHORT),
             ) { "Invalid animation output" }
             var components = 1
             if (channel.targetPath == GLTF_PATH_WEIGHTS) {
@@ -383,8 +540,14 @@ internal fun validateAnimations(model: KGltf, scratch: GltfValidationScratch) {
                 components = model.meshes[node.mesh].primitives[0].targets.size
                 assert(components > 0)
             }
-            val multiplier = if (sampler.interpolation == GLTF_INTERPOLATION_CUBIC_SPLINE) 3 else 1
-            assert(model.accessors[sampler.input].count.toLong() * components * multiplier == output.count.toLong()) { "Invalid animation output count" }
+            val multiplier = if (sampler.interpolation == GLTF_INTERPOLATION_CUBIC_SPLINE) {
+                3
+            } else {
+                1
+            }
+            assert(
+                model.accessors[sampler.input].count.toLong() * components * multiplier == output.count.toLong(),
+            ) { "Invalid animation output count" }
         }
     }
 }
@@ -394,7 +557,12 @@ internal fun validateCamerasAndLights(model: KGltf) {
         when (camera.type) {
             1 -> {
                 val perspective = requireNotNull(camera.perspective)
-                assert(camera.orthographic == null && perspective.yfov > 0 && perspective.yfov < Math.PI && perspective.znear > 0)
+                assert(
+                    camera.orthographic == null &&
+                        perspective.yfov > 0 &&
+                        perspective.yfov < Math.PI &&
+                        perspective.znear > 0,
+                )
                 perspective.aspectRatio?.let { assert(it > 0) }
                 perspective.zfar?.let { assert(it > perspective.znear) }
             }
@@ -402,17 +570,26 @@ internal fun validateCamerasAndLights(model: KGltf) {
             2 -> {
                 val orthographic = requireNotNull(camera.orthographic)
                 assert(
-                    camera.perspective == null && orthographic.xmag != 0f && orthographic.ymag != 0f &&
-                            orthographic.znear >= 0 && orthographic.zfar > orthographic.znear
+                    camera.perspective == null &&
+                        orthographic.xmag != 0f &&
+                        orthographic.ymag != 0f &&
+                        orthographic.znear >= 0 &&
+                        orthographic.zfar > orthographic.znear,
                 )
             }
 
-            else -> error("Invalid camera type")
+            else -> {
+                error("Invalid camera type")
+            }
         }
     }
     for (light in model.lights) {
         assert(light.type in 1..3 && light.color.all { it in 0f..1f } && light.intensity >= 0 && light.range >= 0)
-        assert(light.innerConeAngle >= 0 && light.outerConeAngle > light.innerConeAngle && light.outerConeAngle <= Math.PI / 2)
+        assert(
+            light.innerConeAngle >= 0 &&
+                light.outerConeAngle > light.innerConeAngle &&
+                light.outerConeAngle <= Math.PI / 2,
+        )
     }
 }
 

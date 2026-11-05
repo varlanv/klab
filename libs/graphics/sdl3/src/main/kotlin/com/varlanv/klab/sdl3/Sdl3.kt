@@ -9,14 +9,17 @@ import java.lang.foreign.MemorySegment
 import java.lang.foreign.ValueLayout
 
 class Sdl3 private constructor(private val event: MemorySegment) : AutoCloseable {
-
     private var initialized = true
 
     internal fun checkOpen() {
         check(initialized) { "SDL is closed" }
     }
 
-    fun createWindow(title: MemorySegment, width: Int, height: Int): Sdl3Window {
+    fun createWindow(
+        title: MemorySegment,
+        width: Int,
+        height: Int,
+    ): Sdl3Window {
         checkOpen()
         val handle = SDL3.SDL_CreateWindow(title, width, height, 0L)
         check(handle.address() != 0L) { errorMessage("Failed to create window") }
@@ -31,16 +34,16 @@ class Sdl3 private constructor(private val event: MemorySegment) : AutoCloseable
 
     fun pollEvent(): Sdl3Event? {
         checkOpen()
-        return if (SDL3.SDL_PollEvent(event)) eventType() else null
+        return if (SDL3.SDL_PollEvent(event)) {
+            eventType()
+        } else {
+            null
+        }
     }
 
     fun createGpuDevice(): Sdl3GpuDevice {
         checkOpen()
-        val handle = SDL3.SDL_CreateGPUDevice(
-            SDL3.SDL_GPU_SHADERFORMAT_SPIRV(),
-            false,
-            MemorySegment.NULL,
-        )
+        val handle = SDL3.SDL_CreateGPUDevice(SDL3.SDL_GPU_SHADERFORMAT_SPIRV(), false, MemorySegment.NULL)
         check(handle.address() != 0L) { errorMessage("Failed to create GPU device") }
         return Sdl3GpuDevice(handle)
     }
@@ -52,7 +55,10 @@ class Sdl3 private constructor(private val event: MemorySegment) : AutoCloseable
         check(keyboard.address() != 0L) { errorMessage("Failed to get keyboard state") }
         val keyCount = count.get(ValueLayout.JAVA_INT, 0L)
         check(keyCount > 0) { "Keyboard state is empty" }
-        return Sdl3Input(owner = this, keyboard = keyboard.reinterpret(keyCount.toLong()))
+        return Sdl3Input(
+            owner = this,
+            keyboard = keyboard.reinterpret(keyCount.toLong()),
+        )
     }
 
     fun ticksNs(): Long {
@@ -69,12 +75,21 @@ class Sdl3 private constructor(private val event: MemorySegment) : AutoCloseable
 
     private fun eventType(): Sdl3Event {
         return when (SDL_Event.type(event)) {
-            SDL3.SDL_EVENT_QUIT() -> Sdl3Event.Quit
-            SDL3.SDL_EVENT_WINDOW_CLOSE_REQUESTED() -> Sdl3Event.WindowCloseRequested
-            SDL3.SDL_EVENT_WINDOW_FOCUS_LOST() -> Sdl3Event.WindowFocusLost
-            SDL3.SDL_EVENT_WINDOW_FOCUS_GAINED() -> Sdl3Event.WindowFocusGained
+            SDL3.SDL_EVENT_QUIT() -> {
+                Sdl3Event.Quit
+            }
+            SDL3.SDL_EVENT_WINDOW_CLOSE_REQUESTED() -> {
+                Sdl3Event.WindowCloseRequested
+            }
+            SDL3.SDL_EVENT_WINDOW_FOCUS_LOST() -> {
+                Sdl3Event.WindowFocusLost
+            }
+            SDL3.SDL_EVENT_WINDOW_FOCUS_GAINED() -> {
+                Sdl3Event.WindowFocusGained
+            }
             SDL3.SDL_EVENT_KEY_DOWN() -> {
-                if (SDL_KeyboardEvent.scancode(event) == SDL3.SDL_SCANCODE_ESCAPE() && !SDL_KeyboardEvent.repeat(event)) {
+                if (SDL_KeyboardEvent.scancode(event) == SDL3.SDL_SCANCODE_ESCAPE() &&
+                    !SDL_KeyboardEvent.repeat(event)) {
                     Sdl3Event.EscapePressed
                 } else {
                     Sdl3Event.Other
@@ -89,7 +104,9 @@ class Sdl3 private constructor(private val event: MemorySegment) : AutoCloseable
                 }
             }
 
-            else -> Sdl3Event.Other
+            else -> {
+                Sdl3Event.Other
+            }
         }
     }
 

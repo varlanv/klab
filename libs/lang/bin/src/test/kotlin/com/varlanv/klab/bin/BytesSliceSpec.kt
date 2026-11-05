@@ -19,7 +19,7 @@ class BytesSliceSpec : BaseSpec({
             val copy = slice.cloneSlice()
 
             // then copy exactly its contents into a separate buffer
-            copy.toList() shouldBe bytes.toList().subList(fromIndex = offset, toIndex = offset + len)
+            copy.toList() shouldBe bytes.toList().subList(offset, offset + len)
             (copy === bytes) shouldBe false
         }
     }
@@ -42,7 +42,7 @@ class BytesSliceSpec : BaseSpec({
         for (len in listOf(0, 1, 4, 9, 128, 257)) {
             val expected = MutBytes(len) { (it * 73 - 128).toByte() }
             val padded = MutBytes(len + 8) { 99 }
-            expected.copyInto(destination = padded, destinationOffset = 5)
+            expected.copyInto(padded, 5)
             val first = BytesSlice(bytes = expected, offset = 0, len = len)
             val second = MutBytesSlice(bytes = padded, offset = 5, len = len)
 

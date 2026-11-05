@@ -6,7 +6,6 @@ private const val NANOS_IN_SECOND = 1_000_000_000.0
 private const val FPS_UPDATE_INTERVAL = 500_000_000L
 
 class FpsOverlay(private val text: Text) {
-
     private var sampleStart = 0L
     private var started = false
     private var frameCount = 0

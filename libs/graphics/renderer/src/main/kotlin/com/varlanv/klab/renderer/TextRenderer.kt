@@ -12,7 +12,6 @@ class TextRenderer private constructor(
     private val pipeline: Sdl3GpuGraphicsPipeline,
     private val sampler: Sdl3GpuSampler,
 ) : AutoCloseable {
-
     private val texts = ArrayList<Text>()
     private val mesh = MeshBuffers(device)
     private var vertexCount = 0
@@ -22,7 +21,10 @@ class TextRenderer private constructor(
     private var uploadRecorded = false
     private var closed = false
 
-    fun createText(font: Sdl3Font, text: String = ""): Text {
+    fun createText(
+        font: Sdl3Font,
+        text: String = "",
+    ): Text {
         checkOpen()
         val native = engine.createText(font)
         try {
@@ -50,7 +52,9 @@ class TextRenderer private constructor(
                 geometryDirty = true
             }
         }
-        if (!geometryDirty) return
+        if (!geometryDirty) {
+            return
+        }
         var vertices = 0
         var indices = 0
         for (text in texts) {
@@ -68,19 +72,27 @@ class TextRenderer private constructor(
     fun upload(gpa: NativeAllocator, command: Sdl3GpuCommandBuffer) {
         checkOpen()
         check(!geometryDirty && texts.none { it.dirty }) { "Prepare text before uploading" }
-        if (!uploadPending) return
+        if (!uploadPending) {
+            return
+        }
         val vertexBytes = Math.multiplyExact(vertexCount, 16)
         val indexBytes = Math.multiplyExact(indexCount, 4)
         val data = mesh.map(gpa = gpa, vertexBytes = vertexBytes, indexBytes = indexBytes)
         try {
             for (text in texts) {
                 MemorySegment.copy(
-                    MemorySegment.ofArray(text.vertices), 0L,
-                    data, text.firstVertex * 16L, text.vertexCount * 16L,
+                    MemorySegment.ofArray(text.vertices),
+                    0L,
+                    data,
+                    text.firstVertex * 16L,
+                    text.vertexCount * 16L,
                 )
                 MemorySegment.copy(
-                    MemorySegment.ofArray(text.indices), 0L,
-                    data, mesh.indexOffset + text.firstIndex * 4L, text.indexCount * 4L,
+                    MemorySegment.ofArray(text.indices),
+                    0L,
+                    data,
+                    mesh.indexOffset + text.firstIndex * 4L,
+                    text.indexCount * 4L,
                 )
             }
         } finally {
@@ -91,7 +103,9 @@ class TextRenderer private constructor(
     }
 
     internal fun commitUploads() {
-        if (uploadRecorded) uploadPending = false
+        if (uploadRecorded) {
+            uploadPending = false
+        }
         uploadRecorded = false
     }
 
@@ -100,14 +114,18 @@ class TextRenderer private constructor(
         check(!geometryDirty && (!uploadPending || uploadRecorded) && texts.none { it.dirty }) {
             "Prepare and upload text before drawing"
         }
-        if (indexCount == 0) return
+        if (indexCount == 0) {
+            return
+        }
         pass.bindPipeline(pipeline)
-        mesh.bind(gpa, pass)
-        val uniforms = gpa.alloc(32, 16)
+        mesh.bind(gpa = gpa, pass = pass)
+        val uniforms = gpa.alloc(requested = 32, alignment = 16)
         uniforms.set(ValueLayout.JAVA_FLOAT, 0L, pass.width.toFloat())
         uniforms.set(ValueLayout.JAVA_FLOAT, 4L, pass.height.toFloat())
         for (text in texts) {
-            if (text.indexCount == 0) continue
+            if (text.indexCount == 0) {
+                continue
+            }
             uniforms.set(ValueLayout.JAVA_FLOAT, 8L, text.x)
             uniforms.set(ValueLayout.JAVA_FLOAT, 12L, text.y)
             uniforms.set(ValueLayout.JAVA_FLOAT, 16L, text.red)
@@ -146,42 +164,58 @@ class TextRenderer private constructor(
             gpa: NativeAllocator,
             device: Sdl3GpuDevice,
             targetFormat: Sdl3GpuTextureFormat,
-            shader: Bytes
+            shader: Bytes,
         ): TextRenderer {
             val engine = device.createTextEngine()
             var pipeline: Sdl3GpuGraphicsPipeline? = null
             var sampler: Sdl3GpuSampler? = null
             try {
-                device.createShader(
-                    gpa = gpa,
-                    code = shader, entrypoint = "vertexMain", stage = Sdl3GpuShaderStage.Vertex,
-                    uniformBufferCount = 1,
-                ).use { vertex ->
-                    device.createShader(
+                device
+                    .createShader(
                         gpa = gpa,
-                        code = shader, entrypoint = "fragmentMain", stage = Sdl3GpuShaderStage.Fragment,
-                        samplerCount = 1,
-                    ).use { fragment ->
-                        pipeline = device.createGraphicsPipeline(
-                            gpa = gpa,
-                            vertexShader = vertex,
-                            fragmentShader = fragment,
-                            targetFormat = targetFormat,
-                            vertexPitch = 16,
-                            attributes = listOf(
-                                Sdl3GpuVertexAttribute(location = 0, offset = 0, format = Sdl3GpuVertexFormat.Float2),
-                                Sdl3GpuVertexAttribute(location = 1, offset = 8, format = Sdl3GpuVertexFormat.Float2),
-                            ),
-                            alphaBlend = true,
-                        )
+                        code = shader,
+                        entrypoint = "vertexMain",
+                        stage = Sdl3GpuShaderStage.Vertex,
+                        uniformBufferCount = 1,
+                    )
+                    .use { vertex ->
+                        device
+                            .createShader(
+                                gpa = gpa,
+                                code = shader,
+                                entrypoint = "fragmentMain",
+                                stage = Sdl3GpuShaderStage.Fragment,
+                                samplerCount = 1,
+                            )
+                            .use { fragment ->
+                                pipeline = device.createGraphicsPipeline(
+                                    gpa = gpa,
+                                    vertexShader = vertex,
+                                    fragmentShader = fragment,
+                                    targetFormat = targetFormat,
+                                    vertexPitch = 16,
+                                    attributes = listOf(
+                                        Sdl3GpuVertexAttribute(
+                                            location = 0,
+                                            offset = 0,
+                                            format = Sdl3GpuVertexFormat.Float2,
+                                        ),
+                                        Sdl3GpuVertexAttribute(
+                                            location = 1,
+                                            offset = 8,
+                                            format = Sdl3GpuVertexFormat.Float2,
+                                        ),
+                                    ),
+                                    alphaBlend = true,
+                                )
+                            }
                     }
-                }
-                sampler = device.createSampler(gpa)
+                sampler = device.createSampler(gpa = gpa)
                 return TextRenderer(
                     device = device,
                     engine = engine,
                     pipeline = checkNotNull(pipeline),
-                    sampler = sampler
+                    sampler = sampler,
                 )
             } catch (failure: Throwable) {
                 sampler?.close()

@@ -8,7 +8,6 @@ class Sdl3GpuCommandBuffer internal constructor(
     internal val device: MemorySegment,
     internal var handle: MemorySegment,
 ) : AutoCloseable {
-
     private var activePass: AutoCloseable? = null
     private var swapchainAcquired = false
 
@@ -65,7 +64,9 @@ class Sdl3GpuCommandBuffer internal constructor(
     }
 
     override fun close() {
-        if (handle.address() == 0L) return
+        if (handle.address() == 0L) {
+            return
+        }
         activePass?.close()
         if (swapchainAcquired) {
             submit()
@@ -83,7 +84,6 @@ class Sdl3GpuCopyPass internal constructor(
     private val command: Sdl3GpuCommandBuffer,
     private var handle: MemorySegment,
 ) : AutoCloseable {
-
     fun upload(
         gpa: NativeAllocator,
         source: Sdl3GpuTransferBuffer,
@@ -97,7 +97,13 @@ class Sdl3GpuCopyPass internal constructor(
         check(!source.isMapped) { "GPU transfer buffer must be unmapped before upload" }
         check(source.device.address() == command.device.address())
         check(destination.device.address() == command.device.address())
-        val size = Math.multiplyExact(Math.multiplyExact(destination.width.toLong(), destination.height.toLong()), 4L)
+        val size = Math.multiplyExact(
+            Math.multiplyExact(
+                destination.width.toLong(),
+                destination.height.toLong(),
+            ),
+            4L,
+        )
         require(sourceOffset >= 0 && size <= source.size.toLong() - sourceOffset)
         require(sourceOffset % 4 == 0)
         val location = SDL_GPUTextureTransferInfo.allocate(gpa).fill(0)
@@ -156,7 +162,6 @@ class Sdl3GpuFrame internal constructor(
     val width: Int,
     val height: Int,
 ) {
-
     private var started = false
     private var initializedDepth: Sdl3GpuDepthTexture? = null
 
@@ -183,7 +188,14 @@ class Sdl3GpuFrame internal constructor(
         }
         val target = SDL_GPUColorTargetInfo.allocate(gpa).fill(0)
         SDL_GPUColorTargetInfo.texture(target, texture)
-        SDL_GPUColorTargetInfo.load_op(target, if (clear) SDL3.SDL_GPU_LOADOP_CLEAR() else SDL3.SDL_GPU_LOADOP_LOAD())
+        SDL_GPUColorTargetInfo.load_op(
+            target,
+            if (clear) {
+                SDL3.SDL_GPU_LOADOP_CLEAR()
+            } else {
+                SDL3.SDL_GPU_LOADOP_LOAD()
+            },
+        )
         SDL_GPUColorTargetInfo.store_op(target, SDL3.SDL_GPU_STOREOP_STORE())
         val color = SDL_GPUColorTargetInfo.clear_color(target)
         SDL_FColor.r(color, r)
@@ -196,7 +208,11 @@ class Sdl3GpuFrame internal constructor(
             SDL_GPUDepthStencilTargetInfo.clear_depth(info, 1f)
             SDL_GPUDepthStencilTargetInfo.load_op(
                 info,
-                if (clear) SDL3.SDL_GPU_LOADOP_CLEAR() else SDL3.SDL_GPU_LOADOP_LOAD()
+                if (clear) {
+                    SDL3.SDL_GPU_LOADOP_CLEAR()
+                } else {
+                    SDL3.SDL_GPU_LOADOP_LOAD()
+                },
             )
             SDL_GPUDepthStencilTargetInfo.store_op(info, SDL3.SDL_GPU_STOREOP_STORE())
             SDL_GPUDepthStencilTargetInfo.stencil_load_op(info, SDL3.SDL_GPU_LOADOP_DONT_CARE())
@@ -217,7 +233,9 @@ class Sdl3GpuFrame internal constructor(
         )
         command.beginRenderPass(pass)
         started = true
-        if (depth != null) initializedDepth = depth
+        if (depth != null) {
+            initializedDepth = depth
+        }
         return pass
     }
 }
@@ -229,7 +247,6 @@ class Sdl3GpuRenderPass internal constructor(
     val height: Int,
     private val depthFormat: Sdl3GpuTextureFormat?,
 ) : AutoCloseable {
-
     private var pipelineBound = false
     private var vertexBufferBound = false
     private var indexBytes = -1
@@ -244,7 +261,11 @@ class Sdl3GpuRenderPass internal constructor(
         pipelineBound = true
     }
 
-    fun bindVertexBuffer(gpa: NativeAllocator,buffer: Sdl3GpuBuffer, offset: Int = 0) {
+    fun bindVertexBuffer(
+        gpa: NativeAllocator,
+        buffer: Sdl3GpuBuffer,
+        offset: Int = 0,
+    ) {
         command.checkPass(this)
         buffer.checkOpen()
         check(buffer.device.address() == command.device.address())
@@ -280,7 +301,12 @@ class Sdl3GpuRenderPass internal constructor(
         indexElementSize = format.byteSize
     }
 
-    fun bindFragmentSampler(gpa: NativeAllocator,texture: Sdl3GpuTexture, sampler: Sdl3GpuSampler, slot: Int = 0) {
+    fun bindFragmentSampler(
+        gpa: NativeAllocator,
+        texture: Sdl3GpuTexture,
+        sampler: Sdl3GpuSampler,
+        slot: Int = 0,
+    ) {
         command.checkPass(this)
         sampler.checkOpen()
         check(sampler.device.address() == command.device.address())
@@ -306,7 +332,11 @@ class Sdl3GpuRenderPass internal constructor(
         SDL3.SDL_PushGPUFragmentUniformData(command.handle, slot, data, data.byteSize().toInt())
     }
 
-    fun drawIndexed(indexCount: Int, firstIndex: Int = 0, vertexOffset: Int = 0) {
+    fun drawIndexed(
+        indexCount: Int,
+        firstIndex: Int = 0,
+        vertexOffset: Int = 0,
+    ) {
         command.checkPass(this)
         check(pipelineBound && vertexBufferBound && indexBytes >= 0) { "Draw buffers and pipeline must be bound" }
         require(indexCount >= 0 && firstIndex >= 0)

@@ -13,6 +13,7 @@ proguardVersion = "7.10.0"
 slangVersion = "2026.20"
 versionCatalogPluginVersion = "1.1.2"
 zigVersion = "0.17.0"
+wrasseVersion = "0.0.1-SNAPSHOT"
 
 [libraries]
 jmh-core = { module = "org.openjdk.jmh:jmh-core", version.ref = "jmhVersion" }
@@ -33,6 +34,8 @@ ksp-aaEmbeddable = { module = "com.google.devtools.ksp:symbol-processing-aa-embe
 ksp-api = { module = "com.google.devtools.ksp:symbol-processing-api", version.ref = "kspVersion" }
 ksp-commonDeps = { module = "com.google.devtools.ksp:symbol-processing-common-deps", version.ref = "kspVersion" }
 proguard-gradle = { module = "com.guardsquare:proguard-gradle", version.ref = "proguardVersion" }
+wrasse-compiler-plugin = { module = "com.varlanv.wrasse:compiler-plugin", version.ref = "wrasseVersion" }
+wrasse-gradle-plugin = { module = "com.varlanv.wrasse:wrasse-gradle-plugin", version.ref = "wrasseVersion" }
 
 [plugins]
 internalBenchmark = { id = "com.varlanv.gradle.internal-benchmark-convention-plugin" }
@@ -45,3 +48,4 @@ ksp = { id = "com.google.devtools.ksp", version.ref = "kspVersion" }
 shadersConvention = { id = "com.varlanv.gradle.internal-gradle-slang-plugin" }
 slangBinaryConvention = { id = "com.varlanv.gradle.internal-gradle-slang-binary-plugin" }
 versionCatalogPlugin = { id = "nl.littlerobots.version-catalog-update", version.ref = "versionCatalogPluginVersion" }
+wrasse = { id = "com.varlanv.wrasse", version.ref = "wrasseVersion" }

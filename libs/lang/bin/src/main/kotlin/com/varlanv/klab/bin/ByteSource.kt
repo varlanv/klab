@@ -30,7 +30,7 @@ class BytesSliceSource(private val slice: BytesSlice) : ByteSource {
         offset: Int,
         length: Int,
     ): Int {
-        assert (!(offset < 0 || length < 0 || offset > sink.size - length))
+        assert(!(offset < 0 || length < 0 || offset > sink.size - length))
         if (length == 0) {
             return 0
         }
@@ -40,12 +40,7 @@ class BytesSliceSource(private val slice: BytesSlice) : ByteSource {
         }
         val count = minOf(length, remaining)
         val start = slice.offset + position
-        slice.bytes.copyInto(
-            destination = sink,
-            destinationOffset = offset,
-            startIndex = start,
-            endIndex = start + count,
-        )
+        slice.bytes.copyInto(sink, offset, start, start + count)
         position += count
         return count
     }

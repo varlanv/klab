@@ -31,6 +31,7 @@ val stableEmptyMutDoubles: MutDoubles = stableEmptyDoubles
  * Immutable by contract [ByteArray] alias.
  */
 typealias Bytes = ByteArray
+
 /**
  * Mutable by contract [ByteArray] alias.
  */
@@ -40,6 +41,7 @@ typealias MutBytes = ByteArray
  * Immutable by contract [CharArray] alias.
  */
 typealias Chars = CharArray
+
 /**
  * Mutable by contract [CharArray] alias.
  */
@@ -49,6 +51,7 @@ typealias MutChars = CharArray
  * Immutable by contract [IntArray] alias.
  */
 typealias Ints = IntArray
+
 /**
  * Mutable by contract [IntArray] alias.
  */
@@ -58,6 +61,7 @@ typealias MutInts = IntArray
  * Immutable by contract [LongArray] alias.
  */
 typealias Longs = LongArray
+
 /**
  * Mutable by contract [LongArray] alias.
  */
@@ -67,6 +71,7 @@ typealias MutLongs = LongArray
  * Immutable by contract [ShortArray] alias.
  */
 typealias Shorts = ShortArray
+
 /**
  * Mutable by contract [ShortArray] alias.
  */
@@ -76,6 +81,7 @@ typealias MutShorts = ShortArray
  * Immutable by contract [FloatArray] alias.
  */
 typealias Floats = FloatArray
+
 /**
  * Mutable by contract [FloatArray] alias.
  */
@@ -85,11 +91,11 @@ typealias MutFloats = FloatArray
  * Immutable by contract [DoubleArray] alias.
  */
 typealias Doubles = DoubleArray
+
 /**
  * Mutable by contract [DoubleArray] alias.
  */
 typealias MutDoubles = DoubleArray
-
 
 inline fun Bytes.getPackedLong(idx: Int): Long = longViewHandle.get(this, idx) as Long
 
@@ -109,13 +115,11 @@ inline fun Bytes.setPackedShort(idx: Int, value: Short) {
 
 inline fun Bytes.getPackedShort(idx: Int): Short = shortViewHandle.get(this, idx) as Short
 
-
 inline fun Bytes.setPackedFloat(idx: Int, value: Float) {
     floatViewHandle.set(this, idx, value)
 }
 
 inline fun Bytes.getPackedFloat(idx: Int): Float = floatViewHandle.get(this, idx) as Float
-
 
 inline fun Bytes.setPackedDouble(idx: Int, value: Double) {
     doubleViewHandle.set(this, idx, value)

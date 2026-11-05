@@ -20,10 +20,7 @@ class PreparedModel(
 )
 
 /** Contiguous range in [PreparedModel.primitives]. */
-class PreparedMesh(
-    val firstPrimitive: Int,
-    val primitiveCount: Int,
-)
+class PreparedMesh(val firstPrimitive: Int, val primitiveCount: Int)
 
 /**
  * Indexed triangle list. Offsets are bytes into [PreparedModel.geometry], aligned to four bytes.
@@ -42,7 +39,7 @@ class PreparedPrimitive(
         get() = PreparedVertex.byteSize(vertexCount)
 
     fun vertex(index: Int): PreparedVertex {
-        assert(index in 0..<vertexCount)
+        assert(index in 0..< vertexCount)
         return PreparedVertex(vertexOffset + PreparedVertex.byteSize(index))
     }
 }
@@ -61,10 +58,7 @@ class PreparedImage(
 )
 
 /** Tightly packed rows in [PreparedModel.pixels], with no row padding. */
-class PreparedMip(
-    val offset: Int,
-    val byteSize: Int,
-)
+class PreparedMip(val offset: Int, val byteSize: Int)
 
 enum class PreparedImageFormat {
     Rgba8Unorm,
@@ -107,7 +101,4 @@ class PreparedMaterial(
 )
 
 /** Mesh instance with a column-major 4x4 transform relative to the model root. */
-class PreparedNode(
-    val meshIndex: Int,
-    val transform: Floats,
-)
+class PreparedNode(val meshIndex: Int, val transform: Floats)

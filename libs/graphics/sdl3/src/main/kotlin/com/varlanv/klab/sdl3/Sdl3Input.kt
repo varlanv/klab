@@ -13,11 +13,7 @@ enum class Sdl3Scancode(internal val value: Int) {
     Escape(SDL3.SDL_SCANCODE_ESCAPE()),
 }
 
-class Sdl3Input internal constructor(
-    private val owner: Sdl3,
-    private val keyboard: MemorySegment,
-) {
-
+class Sdl3Input internal constructor(private val owner: Sdl3, private val keyboard: MemorySegment) {
     var mouseDeltaX = 0f
         private set
     var mouseDeltaY = 0f
@@ -37,8 +33,14 @@ class Sdl3Input internal constructor(
 
     fun update(gpa: NativeAllocator) {
         owner.checkOpen()
-        val delta = gpa.allocate(8, 4)
-        SDL3.SDL_GetRelativeMouseState(delta, delta.asSlice(4L, 4L))
+        val delta = gpa.allocate(byteSize = 8, byteAlignment = 4)
+        SDL3.SDL_GetRelativeMouseState(
+            delta,
+            delta.asSlice(
+                4L,
+                4L,
+            ),
+        )
         mouseDeltaX = delta.get(ValueLayout.JAVA_FLOAT, 0L)
         mouseDeltaY = delta.get(ValueLayout.JAVA_FLOAT, 4L)
     }

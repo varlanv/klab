@@ -50,7 +50,7 @@ internal object VectorBytesHash : BytesHash, VectorApi {
     override fun smokeTest(): Boolean {
         val bytes = MutBytes(blockBytes * 2 + 5) { (it * 73 - 128).toByte() }
         return hash(bytes = bytes, start = 1, end = bytes.size) ==
-                hashSwar(bytes = bytes, start = 1, end = bytes.size, initial = 1)
+            hashSwar(bytes = bytes, start = 1, end = bytes.size, initial = 1)
     }
 
     override fun hash(
@@ -67,9 +67,9 @@ internal object VectorBytesHash : BytesHash, VectorApi {
             val part2 = vector.convert(VectorOperators.B2I, 2) as IntVector
             val part3 = vector.convert(VectorOperators.B2I, 3) as IntVector
             val weighted = part0.mul(weights0).reduceLanes(VectorOperators.ADD) +
-                    part1.mul(weights1).reduceLanes(VectorOperators.ADD) +
-                    part2.mul(weights2).reduceLanes(VectorOperators.ADD) +
-                    part3.mul(weights3).reduceLanes(VectorOperators.ADD)
+                part1.mul(weights1).reduceLanes(VectorOperators.ADD) +
+                part2.mul(weights2).reduceLanes(VectorOperators.ADD) +
+                part3.mul(weights3).reduceLanes(VectorOperators.ADD)
             result = blockMultiplier * result + weighted
             index += blockBytes
         }

@@ -9,7 +9,6 @@ import com.varlanv.klab.sdl3.Sdl3Ttf
 
 /** Owns platform resources. Close renderers before closing the platform. */
 interface Platform : TracedCloseable {
-
     val device: Sdl3GpuDevice
     val swapchain: Sdl3GpuSwapchain
     val ttf: Sdl3Ttf
@@ -18,6 +17,7 @@ interface Platform : TracedCloseable {
     var mouseCaptured: Boolean
 
     fun pollEvents(): Boolean
+
     fun ticksNs(): Long
 
     context(std: Std)

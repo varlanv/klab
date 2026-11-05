@@ -18,7 +18,6 @@ class PlatformImpl private constructor(
     override val assets: Assets,
     private val resources: List<AutoCloseable>,
 ) : Platform {
-
     private var closed = false
     private var previousRefreshRate = 0.0
 
@@ -41,7 +40,10 @@ class PlatformImpl private constructor(
             when (sdl.pollEvent() ?: return true) {
                 Sdl3Event.Quit, Sdl3Event.WindowCloseRequested -> return false
                 Sdl3Event.EscapePressed, Sdl3Event.WindowFocusLost -> mouseCaptured = false
-                Sdl3Event.LeftMousePressed -> if (window.hasInputFocus) mouseCaptured = true
+                Sdl3Event.LeftMousePressed -> if (window.hasInputFocus) {
+                    mouseCaptured = true
+                }
+
                 Sdl3Event.WindowFocusGained, Sdl3Event.Other -> Unit
             }
         }
@@ -55,7 +57,13 @@ class PlatformImpl private constructor(
     context(std: Std)
     override fun waitForNextFrame(frameStart: Long) {
         checkOpen()
-        val refreshRate = window.currentDisplayRefreshRate().let { if (it > 0.0) it else 60.0 }
+        val refreshRate = window.currentDisplayRefreshRate().let {
+            if (it > 0.0) {
+                it
+            } else {
+                60.0
+            }
+        }
         if (refreshRate != previousRefreshRate) {
             std.debug { "Resolved refresh rate - [ $refreshRate ]" }
             previousRefreshRate = refreshRate
@@ -66,7 +74,9 @@ class PlatformImpl private constructor(
 
     context(std: Std)
     override fun close() {
-        if (closed) return
+        if (closed) {
+            return
+        }
         closed = true
         try {
             assets.close()
@@ -91,15 +101,21 @@ class PlatformImpl private constructor(
             try {
                 val sdl = Sdl3.init(gpa).also { resources.add(it) }
                 val device = sdl.createGpuDevice().also { resources.add(it) }
-                val window = sdl.createWindow(title, width = 1280, height = 720).also { resources.add(it) }
+                val window = sdl.createWindow(title = title, width = 1280, height = 720).also { resources.add(it) }
                 val swapchain = device.claimWindow(window).also { resources.add(it) }
                 val ttf = Sdl3Ttf.init().also { resources.add(it) }
                 val input = sdl.createInput(gpa)
                 window.setRelativeMouseMode(true)
                 input.discardMouseMotion()
                 return PlatformImpl(
-                    sdl = sdl, window = window, device = device, swapchain = swapchain,
-                    ttf = ttf, input = input, assets = AssetsImpl(device), resources = resources,
+                    sdl = sdl,
+                    window = window,
+                    device = device,
+                    swapchain = swapchain,
+                    ttf = ttf,
+                    input = input,
+                    assets = AssetsImpl(device),
+                    resources = resources,
                 )
             } catch (failure: Throwable) {
                 for (index in resources.indices.reversed()) {

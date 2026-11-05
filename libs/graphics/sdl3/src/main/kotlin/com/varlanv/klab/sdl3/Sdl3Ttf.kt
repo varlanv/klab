@@ -7,16 +7,25 @@ import com.varlanv.klab.sdl3.ffi.generated.ttf.SDL3Ttf
 import java.lang.foreign.MemorySegment
 
 class Sdl3Ttf private constructor() : AutoCloseable {
-
     private var initialized = true
     private var fontCount = 0
 
-    fun openFont(gpa: NativeAllocator,data: Bytes, pointSize: Float): Sdl3Font {
+    fun openFont(
+        gpa: NativeAllocator,
+        data: Bytes,
+        pointSize: Float,
+    ): Sdl3Font {
         check(initialized)
         require(data.isNotEmpty())
         require(pointSize.isFinite() && pointSize > 0f)
         val bytes = gpa.allocate(data.size.toLong())
-        MemorySegment.copy(MemorySegment.ofArray(data), 0L, bytes, 0L, bytes.byteSize())
+        MemorySegment.copy(
+            MemorySegment.ofArray(data),
+            0L,
+            bytes,
+            0L,
+            bytes.byteSize(),
+        )
         val stream = SDL3.SDL_IOFromConstMem(bytes, bytes.byteSize())
         check(stream.address() != 0L) { errorMessage("Failed to open font stream") }
         val handle = SDL3Ttf.TTF_OpenFontIO(stream, true, pointSize)
@@ -47,11 +56,7 @@ class Sdl3Ttf private constructor() : AutoCloseable {
     }
 }
 
-class Sdl3Font internal constructor(
-    private val owner: Sdl3Ttf,
-    internal var handle: MemorySegment,
-) : AutoCloseable {
-
+class Sdl3Font internal constructor(private val owner: Sdl3Ttf, internal var handle: MemorySegment) : AutoCloseable {
     internal var textCount = 0
 
     internal fun checkOpen() {

@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.ksp) apply false
     alias(libs.plugins.kotest) apply false
     alias(libs.plugins.jmh) apply false
+    alias(libs.plugins.wrasse) apply false
     alias(libs.plugins.versionCatalogPlugin)
 }
 

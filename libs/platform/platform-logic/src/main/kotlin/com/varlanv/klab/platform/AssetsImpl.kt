@@ -29,28 +29,36 @@ class AssetsImpl(private val device: Sdl3GpuDevice) : Assets {
         val pixelOffset = Math.addExact(source.geometry.byteSize, RGBA_BYTES - 1) and -RGBA_BYTES
         val whiteOffset = Math.addExact(pixelOffset, source.pixels.size)
         val needsWhite = source.materials.any { it.imageIndex == MISSING_RESOURCE }
-        val transferSize = Math.addExact(whiteOffset, if (needsWhite) RGBA_BYTES else 0)
+        val transferSize = Math.addExact(
+            whiteOffset,
+            if (needsWhite) {
+                RGBA_BYTES
+            } else {
+                0
+            },
+        )
         return ResourcesHolder.safeAllocate { ownership ->
             val resources = ownership.register(GpuResources())
-            val result = device.createTransferBuffer(gpa, transferSize).use { transfer ->
-                val mapped = transfer.map(cycle = false)
+            val result = device.createTransferBuffer(gpa = gpa, size = transferSize).use { transfer ->
+                val mapped = transfer.map(false)
                 try {
                     MemorySegment.copy(
                         MemorySegment.ofArray(source.geometry.bytes),
                         0L,
                         mapped,
                         0L,
-                        source.geometry.byteSize.toLong()
+                        source.geometry.byteSize.toLong(),
                     )
                     MemorySegment.copy(
                         MemorySegment.ofArray(source.pixels),
                         0L,
                         mapped,
                         pixelOffset.toLong(),
-                        source.pixels.size.toLong()
+                        source.pixels.size.toLong(),
                     )
-                    if (needsWhite) mapped.asSlice(whiteOffset.toLong(), RGBA_BYTES.toLong())
-                        .fill(WHITE_CHANNEL.toByte())
+                    if (needsWhite) {
+                        mapped.asSlice(whiteOffset.toLong(), RGBA_BYTES.toLong()).fill(WHITE_CHANNEL.toByte())
+                    }
                 } finally {
                     transfer.unmap()
                 }
@@ -60,18 +68,23 @@ class AssetsImpl(private val device: Sdl3GpuDevice) : Assets {
                             val image = source.images[index]
                             val texture = resources.register(
                                 device.createSampledTexture(
-                                    gpa, image.width, image.height,
+                                    gpa = gpa,
+                                    width = image.width,
+                                    height = image.height,
                                     srgb = when (image.format) {
                                         PreparedImageFormat.Rgba8Unorm -> false
                                         PreparedImageFormat.Rgba8Srgb -> true
                                     },
-                                )
+                                ),
                             )
                             copyPass.upload(
-                                gpa,
-                                transfer,
-                                texture,
-                                sourceOffset = Math.addExact(pixelOffset, image.mips[0].offset)
+                                gpa = gpa,
+                                source = transfer,
+                                destination = texture,
+                                sourceOffset = Math.addExact(
+                                    pixelOffset,
+                                    image.mips[0].offset,
+                                ),
                             )
                             texture
                         }
@@ -79,26 +92,44 @@ class AssetsImpl(private val device: Sdl3GpuDevice) : Assets {
                             val sampler = source.samplers[index]
                             resources.register(
                                 device.createSampler(
-                                    gpa,
+                                    gpa = gpa,
                                     minFilter = sampler.minFilter.toSdl(),
                                     magFilter = sampler.magFilter.toSdl(),
                                     addressModeU = sampler.addressModeU.toSdl(),
                                     addressModeV = sampler.addressModeV.toSdl(),
-                                )
+                                ),
                             )
                         }
                         val white = if (needsWhite) {
-                            resources.register(device.createSampledTexture(gpa, 1, 1)).also {
-                                copyPass.upload(gpa, transfer, it, sourceOffset = whiteOffset)
+                            resources.register(device.createSampledTexture(gpa = gpa, width = 1, height = 1)).also {
+                                copyPass.upload(
+                                    gpa = gpa,
+                                    source = transfer,
+                                    destination = it,
+                                    sourceOffset = whiteOffset,
+                                )
                             }
-                        } else null
-                        val defaultSampler =
-                            if (needsWhite) resources.register(device.createSampler(gpa)) else null
+                        } else {
+                            null
+                        }
+                        val defaultSampler = if (needsWhite) {
+                            resources.register(device.createSampler(gpa = gpa))
+                        } else {
+                            null
+                        }
                         val materials = Array(source.materials.size) { index ->
                             val material = source.materials[index]
                             GpuModelMaterial(
-                                texture = if (material.imageIndex == MISSING_RESOURCE) checkNotNull(white) else textures[material.imageIndex],
-                                sampler = if (material.samplerIndex == MISSING_RESOURCE) checkNotNull(defaultSampler) else samplers[material.samplerIndex],
+                                texture = if (material.imageIndex == MISSING_RESOURCE) {
+                                    checkNotNull(white)
+                                } else {
+                                    textures[material.imageIndex]
+                                },
+                                sampler = if (material.samplerIndex == MISSING_RESOURCE) {
+                                    checkNotNull(defaultSampler)
+                                } else {
+                                    samplers[material.samplerIndex]
+                                },
                                 baseColor = material.baseColor.copyOf(),
                                 alphaCutoff = material.alphaCutoff,
                                 unlit = material.unlit,
@@ -110,28 +141,33 @@ class AssetsImpl(private val device: Sdl3GpuDevice) : Assets {
                             val indexBytes = Math.multiplyExact(primitive.indexCount, primitive.indexFormat.byteSize)
                             val vertices = resources.register(
                                 device.createBuffer(
-                                    gpa,
-                                    Sdl3GpuBufferUsage.Vertex,
-                                    vertexBytes
-                                )
+                                    gpa = gpa,
+                                    usage = Sdl3GpuBufferUsage.Vertex,
+                                    size = vertexBytes,
+                                ),
                             )
-                            val indices =
-                                resources.register(device.createBuffer(gpa, Sdl3GpuBufferUsage.Index, indexBytes))
+                            val indices = resources.register(
+                                device.createBuffer(
+                                    gpa = gpa,
+                                    usage = Sdl3GpuBufferUsage.Index,
+                                    size = indexBytes,
+                                ),
+                            )
                             copyPass.upload(
-                                gpa,
-                                transfer,
-                                vertices,
-                                vertexBytes,
+                                gpa = gpa,
+                                source = transfer,
+                                destination = vertices,
+                                size = vertexBytes,
                                 sourceOffset = primitive.vertexOffset,
-                                cycle = false
+                                cycle = false,
                             )
                             copyPass.upload(
-                                gpa,
-                                transfer,
-                                indices,
-                                indexBytes,
+                                gpa = gpa,
+                                source = transfer,
+                                destination = indices,
+                                size = indexBytes,
                                 sourceOffset = primitive.indexOffset,
-                                cycle = false
+                                cycle = false,
                             )
                             GpuModelPrimitive(
                                 vertices = vertices,
@@ -151,7 +187,7 @@ class AssetsImpl(private val device: Sdl3GpuDevice) : Assets {
                             },
                             nodes = List(source.nodes.size) { index ->
                                 val node = source.nodes[index]
-                                GpuModelNode(node.meshIndex, node.transform.copyOf())
+                                GpuModelNode(meshIndex = node.meshIndex, transform = node.transform.copyOf())
                             },
                             resources = ownership,
                         )
@@ -178,12 +214,22 @@ private fun isValid(source: PreparedModel): Boolean {
     assert(source.nodes.isNotEmpty() && source.primitives.isNotEmpty()) { "Model contains no geometry" }
     for (primitive in source.primitives) {
         assert(primitive.vertexCount > 0 && primitive.indexCount > 0)
-        assert(primitive.vertexOffset % Float.SIZE_BYTES == 0 && primitive.indexOffset % primitive.indexFormat.byteSize == 0)
-        assertRange(primitive.vertexOffset, primitive.vertexByteSize, source.geometry.byteSize)
+        assert(
+            primitive.vertexOffset % Float.SIZE_BYTES == 0 &&
+                primitive.indexOffset % primitive.indexFormat.byteSize == 0,
+        )
         assertRange(
-            primitive.indexOffset,
-            Math.multiplyExact(primitive.indexCount, primitive.indexFormat.byteSize),
-            source.geometry.byteSize
+            offset = primitive.vertexOffset,
+            size = primitive.vertexByteSize,
+            capacity = source.geometry.byteSize,
+        )
+        assertRange(
+            offset = primitive.indexOffset,
+            size = Math.multiplyExact(
+                primitive.indexCount,
+                primitive.indexFormat.byteSize,
+            ),
+            capacity = source.geometry.byteSize,
         )
         assert(primitive.materialIndex in source.materials.indices)
     }
@@ -191,13 +237,23 @@ private fun isValid(source: PreparedModel): Boolean {
         assert(image.width > 0 && image.height > 0)
         assert(image.mips.size == 1) { "Model upload currently supports only the base mip" }
         val mip = image.mips[0]
-        assert(mip.byteSize == Math.multiplyExact(Math.multiplyExact(image.width, image.height), RGBA_BYTES))
+        assert(
+            mip.byteSize == Math.multiplyExact(
+                Math.multiplyExact(
+                    image.width,
+                    image.height,
+                ),
+                RGBA_BYTES,
+            ),
+        )
         assert(mip.offset % RGBA_BYTES == 0)
-        assertRange(mip.offset, mip.byteSize, source.pixels.size)
+        assertRange(offset = mip.offset, size = mip.byteSize, capacity = source.pixels.size)
     }
     assert(source.pixels.size % RGBA_BYTES == 0)
     for (sampler in source.samplers) {
-        assert(sampler.mipmapMode == PreparedMipmapMode.None) { "Model upload currently supports non-mipmapped samplers" }
+        assert(
+            sampler.mipmapMode == PreparedMipmapMode.None,
+        ) { "Model upload currently supports non-mipmapped samplers" }
     }
     for (material in source.materials) {
         assert(material.baseColor.size == COLOR_COMPONENTS)
@@ -209,7 +265,7 @@ private fun isValid(source: PreparedModel): Boolean {
         }
     }
     for (mesh in source.meshes) {
-        assertRange(mesh.firstPrimitive, mesh.primitiveCount, source.primitives.size)
+        assertRange(offset = mesh.firstPrimitive, size = mesh.primitiveCount, capacity = source.primitives.size)
     }
     for (node in source.nodes) {
         assert(node.meshIndex in source.meshes.indices)
@@ -218,7 +274,11 @@ private fun isValid(source: PreparedModel): Boolean {
     return true
 }
 
-private fun assertRange(offset: Int, size: Int, capacity: Int) {
+private fun assertRange(
+    offset: Int,
+    size: Int,
+    capacity: Int,
+) {
     assert(offset >= 0 && size >= 0 && offset <= capacity - size) { "Prepared model range exceeds its storage" }
 }
 

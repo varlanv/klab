@@ -18,7 +18,11 @@ private const val ARGB_RED_SHIFT = 16
 private const val ARGB_GREEN_SHIFT = 8
 private const val ARGB_ALPHA_SHIFT = 24
 
-internal fun openPreparedImage(source: KGltf, index: Int, resolver: ((String) -> Bytes)?): PreparedImageReader {
+internal fun openPreparedImage(
+    source: KGltf,
+    index: Int,
+    resolver: ((String) -> Bytes)?,
+): PreparedImageReader {
     val image = source.images[index]
     require(image.mimeType == null || image.mimeType == "image/png" || image.mimeType == "image/jpeg") {
         "Unsupported image format: ${image.mimeType}"
@@ -29,11 +33,13 @@ internal fun openPreparedImage(source: KGltf, index: Int, resolver: ((String) ->
         ByteArrayInputStream(
             source.bufferSources[view.buffer],
             source.bufferOffsets[view.buffer] + view.offset,
-            view.byteLength
+            view.byteLength,
         )
     } else {
         val uri = checkNotNull(image.uri) { "Image has no data source" }
-        val bytes = if (uri.startsWith("data:")) decodeDataUri(uri) else {
+        val bytes = if (uri.startsWith("data:")) {
+            decodeDataUri(uri)
+        } else {
             checkNotNull(resolver) { "External images require a resource resolver" }(decodeGltfUri(uri))
         }
         ByteArrayInputStream(bytes)
@@ -45,20 +51,21 @@ internal fun openPreparedImage(source: KGltf, index: Int, resolver: ((String) ->
         require(readers.hasNext()) { "Could not decode image" }
         val selected = readers.next()
         reader = selected
-        require(
-            selected.formatName.equals("png", ignoreCase = true) || selected.formatName.equals(
-                "jpeg",
-                ignoreCase = true
-            )
-        ) {
+        require(selected.formatName.equals("png", true) || selected.formatName.equals("jpeg", true)) {
             "Unsupported image format: ${selected.formatName}"
         }
         selected.setInput(input, true, true)
         val width = selected.getWidth(0)
         val height = selected.getHeight(0)
         require(width > 0 && height > 0) { "Invalid image dimensions" }
-        val size = Math.multiplyExact(Math.multiplyExact(width, height), RGBA_BYTES)
-        return PreparedImageReader(selected, input, width, height, size)
+        val size = Math.multiplyExact(
+            Math.multiplyExact(
+                width,
+                height,
+            ),
+            RGBA_BYTES,
+        )
+        return PreparedImageReader(reader = selected, input = input, width = width, height = height, byteSize = size)
     } catch (failure: Throwable) {
         try {
             reader?.dispose()
@@ -107,7 +114,9 @@ internal class PreparedImageReader(
     }
 
     override fun close() {
-        if (closed) return
+        if (closed) {
+            return
+        }
         closed = true
         try {
             reader.dispose()

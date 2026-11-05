@@ -4,7 +4,6 @@ package com.varlanv.klab
  * Same as [AutoCloseable], but logs errors to provided logger and guarantees that close will not fail with exception.
  */
 interface TracedCloseable {
-
     context(std: Std)
     fun close()
 }

@@ -28,42 +28,47 @@ private const val M33 = 15
 
 fun KGltf.copyLocalTransformTo(nodeIndex: Int, destination: MutFloats) {
     require(destination.size >= MAT4_COMPONENTS)
-    localTransform(nodes[nodeIndex], destination)
+    localTransform(node = nodes[nodeIndex], out = destination)
 }
 
 fun KGltf.copyWorldTransformTo(nodeIndex: Int, destination: MutFloats) {
     require(destination.size >= MAT4_COMPONENTS)
     var index = nodeIndex
-    localTransform(nodes[index], destination)
+    localTransform(node = nodes[index], out = destination)
     val parent = MutFloats(MAT4_COMPONENTS)
     while (nodes[index].parent >= 0) {
         index = nodes[index].parent
-        localTransform(nodes[index], parent)
-        multiplyTransform(parent, destination)
+        localTransform(node = nodes[index], out = parent)
+        multiplyTransform(parent = parent, out = destination)
     }
 }
 
-fun KGltf.copyWorldTransformTo(nodeIndex: Int, destination: MutFloats, scratch: MutFloats) {
+fun KGltf.copyWorldTransformTo(
+    nodeIndex: Int,
+    destination: MutFloats,
+    scratch: MutFloats,
+) {
     require(destination.size >= MAT4_COMPONENTS && scratch.size >= MAT4_COMPONENTS && destination !== scratch)
     var index = nodeIndex
-    localTransform(nodes[index], destination)
+    localTransform(node = nodes[index], out = destination)
     while (nodes[index].parent >= 0) {
         index = nodes[index].parent
-        localTransform(nodes[index], scratch)
-        multiplyTransform(scratch, destination)
+        localTransform(node = nodes[index], out = scratch)
+        multiplyTransform(parent = scratch, out = destination)
     }
 }
 
 private fun localTransform(node: KNode, out: MutFloats) {
     if (node.hasMatrix) {
-        (node.matrixValues ?: defaultMatrix).copyInto(out, 0, 0, MAT4_COMPONENTS); return
+        (node.matrixValues ?: defaultMatrix).copyInto(out, 0, 0, MAT4_COMPONENTS)
+        return
     }
-    val qx = (node.rotationValues ?: defaultRotation)[VECTOR_X];
-    val qy = (node.rotationValues ?: defaultRotation)[VECTOR_Y];
-    val qz = (node.rotationValues ?: defaultRotation)[VECTOR_Z];
+    val qx = (node.rotationValues ?: defaultRotation)[VECTOR_X]
+    val qy = (node.rotationValues ?: defaultRotation)[VECTOR_Y]
+    val qz = (node.rotationValues ?: defaultRotation)[VECTOR_Z]
     val qw = (node.rotationValues ?: defaultRotation)[VECTOR_W]
-    val sx = (node.scaleValues ?: defaultScale)[VECTOR_X];
-    val sy = (node.scaleValues ?: defaultScale)[VECTOR_Y];
+    val sx = (node.scaleValues ?: defaultScale)[VECTOR_X]
+    val sy = (node.scaleValues ?: defaultScale)[VECTOR_Y]
     val sz = (node.scaleValues ?: defaultScale)[VECTOR_Z]
     out[M00] = (1 - 2 * qy * qy - 2 * qz * qz) * sx
     out[M10] = (2 * qx * qy + 2 * qz * qw) * sx
@@ -86,9 +91,9 @@ private fun localTransform(node: KNode, out: MutFloats) {
 internal fun multiplyTransform(parent: Floats, out: MutFloats) {
     var column = 0
     while (column < MAT4_COMPONENTS) {
-        val x = out[column];
-        val y = out[column + VECTOR_Y];
-        val z = out[column + VECTOR_Z];
+        val x = out[column]
+        val y = out[column + VECTOR_Y]
+        val z = out[column + VECTOR_Z]
         val w = out[column + VECTOR_W]
         out[column] = parent[M00] * x + parent[M01] * y + parent[M02] * z + parent[M03] * w
         out[column + VECTOR_Y] = parent[M10] * x + parent[M11] * y + parent[M12] * z + parent[M13] * w

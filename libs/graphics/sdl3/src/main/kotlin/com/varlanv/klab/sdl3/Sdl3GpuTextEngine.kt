@@ -7,7 +7,6 @@ class Sdl3GpuTextEngine internal constructor(
     internal val device: MemorySegment,
     private var handle: MemorySegment,
 ) : AutoCloseable {
-
     private var textCount = 0
 
     fun createText(font: Sdl3Font): Sdl3GpuText {

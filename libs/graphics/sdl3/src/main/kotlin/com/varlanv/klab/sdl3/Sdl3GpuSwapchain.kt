@@ -9,16 +9,17 @@ class Sdl3GpuSwapchain internal constructor(
     private val device: MemorySegment,
     private var window: MemorySegment,
 ) : AutoCloseable {
-
     val textureFormat: Sdl3GpuTextureFormat
         get() {
             checkOpen()
             val format = SDL3.SDL_GetGPUSwapchainTextureFormat(device, window)
-            check(format != SDL3.SDL_GPU_TEXTUREFORMAT_INVALID()) { errorMessage("Failed to get swapchain texture format") }
+            check(
+                format != SDL3.SDL_GPU_TEXTUREFORMAT_INVALID(),
+            ) { errorMessage("Failed to get swapchain texture format") }
             return Sdl3GpuTextureFormat(format)
         }
 
-    fun acquireFrame(gpa: NativeAllocator,command: Sdl3GpuCommandBuffer): Sdl3GpuFrame? {
+    fun acquireFrame(gpa: NativeAllocator, command: Sdl3GpuCommandBuffer): Sdl3GpuFrame? {
         checkOpen()
         command.checkCanAcquire()
         check(command.device.address() == device.address())
@@ -35,18 +36,14 @@ class Sdl3GpuSwapchain internal constructor(
             ),
         ) { errorMessage("Failed to acquire swapchain texture") }
         val texture = texturePointer.get(ValueLayout.ADDRESS, 0L)
-        if (texture.address() == 0L) return null
+        if (texture.address() == 0L) {
+            return null
+        }
         command.markSwapchainAcquired()
         val width = widthPointer.get(ValueLayout.JAVA_INT, 0L)
         val height = heightPointer.get(ValueLayout.JAVA_INT, 0L)
         assert(width > 0 && height > 0)
-        return Sdl3GpuFrame(
-            swapchain = this,
-            command = command,
-            texture = texture,
-            width = width,
-            height = height,
-        )
+        return Sdl3GpuFrame(swapchain = this, command = command, texture = texture, width = width, height = height)
     }
 
     internal fun checkOpen() {
