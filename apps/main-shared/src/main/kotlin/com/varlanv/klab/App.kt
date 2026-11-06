@@ -1,9 +1,9 @@
 package com.varlanv.klab
 
 import com.varlanv.klab.glb.GltfLoader
+import com.varlanv.klab.gpu.assets.Assets
 import com.varlanv.klab.log.Log
 import com.varlanv.klab.mem.NativeAllocator
-import com.varlanv.klab.platform.Assets
 import com.varlanv.klab.platform.Platform
 import com.varlanv.klab.platform.PlatformImpl
 import com.varlanv.klab.renderer.FlyCameraController

@@ -5,9 +5,8 @@ plugins {
 description = "Application / platform level API"
 
 dependencies {
-    api(projects.libs.lang.common)
-    api(projects.libs.lang.mem)
-    api(projects.libs.graphics.rendererApi)
-    api(projects.libs.graphics.gpuAssets)
-    api(projects.libs.graphics.sdl3)
+    implementation(projects.libs.lang.common)
+    implementation(projects.libs.lang.mem)
+    implementation(projects.libs.graphics.assets.assetsApi)
+    implementation(projects.libs.graphics.sdl3.sdl3Api)
 }

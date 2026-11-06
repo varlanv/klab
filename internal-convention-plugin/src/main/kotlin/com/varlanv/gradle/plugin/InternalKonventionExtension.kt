@@ -26,10 +26,14 @@ interface InternalKonventionExtension {
 
     fun mainAppCommonDependencies(project: Project) {
         val dependencies = project.dependencies
-        dependencies.add("implementation", dependencies.project(":libs:graphics:renderer"))
-        dependencies.add("implementation", dependencies.project(":libs:graphics:sdl3"))
+        dependencies.add("implementation", dependencies.project(":libs:graphics:renderer:renderer-api"))
+        dependencies.add("implementation", dependencies.project(":libs:graphics:renderer:renderer-impl"))
+        dependencies.add("implementation", dependencies.project(":libs:graphics:sdl3:sdl3-api"))
+        dependencies.add("implementation", dependencies.project(":libs:graphics:sdl3:sdl3-bindings-generated"))
         dependencies.add("implementation", dependencies.project(":libs:lang:common"))
         dependencies.add("implementation", dependencies.project(":libs:lang:mem"))
+        dependencies.add("implementation", dependencies.project(":libs:lang:bin"))
+        dependencies.add("implementation", dependencies.project(":libs:lang:collections"))
     }
 
     fun configureBenchmark(project: Project) {

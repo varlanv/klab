@@ -8,6 +8,7 @@ import org.gradle.api.artifacts.transform.*
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.FileSystemLocation
+import org.gradle.api.file.FileSystemOperations
 import org.gradle.api.plugins.BasePlugin
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
@@ -16,6 +17,7 @@ import org.gradle.api.tasks.*
 import org.gradle.work.DisableCachingByDefault
 import java.nio.file.Files
 import java.util.zip.ZipFile
+import javax.inject.Inject
 
 class SlangBinaryPlugin : Plugin<Project> {
 
@@ -59,11 +61,13 @@ class SlangBinaryPlugin : Plugin<Project> {
             "org.shader-slang:slang:$version:${platform.classifier}@zip",
         )
 
-        val runtimeDirectory = project.layout.dir(distribution.elements.map { it.single().asFile })
+        val distributionDirectory = project.layout.dir(distribution.elements.map { it.single().asFile })
+        val compilerDirectory = project.layout.buildDirectory.dir("slang/compiler")
         val extractSlang = project.tasks.register("extractSlang", ResolveSlang::class.java) { task ->
             task.group = "build setup"
             task.description = "Resolves the pinned Slang compiler from Gradle's shared cache."
-            task.compilerDirectory.set(runtimeDirectory)
+            task.distributionDirectory.set(distributionDirectory)
+            task.compilerDirectory.set(compilerDirectory)
             task.executableName.set(platform.executableName)
         }
 
@@ -71,7 +75,7 @@ class SlangBinaryPlugin : Plugin<Project> {
             it.isCanBeConsumed = true
             it.isCanBeResolved = false
         }
-        project.artifacts.add(compilerElements.name, runtimeDirectory) {
+        project.artifacts.add(compilerElements.name, compilerDirectory) {
             it.builtBy(extractSlang)
             it.type = "directory"
         }
@@ -128,10 +132,15 @@ abstract class ExtractSlang : TransformAction<ExtractSlang.Parameters> {
 }
 
 @DisableCachingByDefault(because = "Compiler extraction is cached by an artifact transform.")
-abstract class ResolveSlang : DefaultTask() {
+abstract class ResolveSlang @Inject constructor(
+    private val fileSystemOperations: FileSystemOperations,
+) : DefaultTask() {
 
     @get:InputDirectory
     @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val distributionDirectory: DirectoryProperty
+
+    @get:OutputDirectory
     abstract val compilerDirectory: DirectoryProperty
 
     @get:Input
@@ -139,6 +148,12 @@ abstract class ResolveSlang : DefaultTask() {
 
     @TaskAction
     fun resolve() {
+        val outputDirectory = compilerDirectory.get().asFile
+        fileSystemOperations.delete { it.delete(outputDirectory) }
+        fileSystemOperations.copy {
+            it.from(distributionDirectory)
+            it.into(outputDirectory)
+        }
         val executable = compilerDirectory.file("bin/${executableName.get()}").get().asFile
         check(executable.isFile) { "Slang compiler is missing: $executable" }
         logger.info("Slang compiler: {}", executable)

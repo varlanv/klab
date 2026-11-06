@@ -2,6 +2,7 @@ package com.varlanv.klab.platform
 
 import com.varlanv.klab.Std
 import com.varlanv.klab.TracedCloseable
+import com.varlanv.klab.gpu.assets.Assets
 import com.varlanv.klab.sdl3.Sdl3GpuDevice
 import com.varlanv.klab.sdl3.Sdl3GpuSwapchain
 import com.varlanv.klab.sdl3.Sdl3Input

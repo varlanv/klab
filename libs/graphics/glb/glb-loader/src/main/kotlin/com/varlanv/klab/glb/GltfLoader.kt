@@ -4,6 +4,7 @@ import com.varlanv.klab.collections.Array
 import com.varlanv.klab.collections.Bytes
 import com.varlanv.klab.collections.MutInts
 import com.varlanv.klab.collections.MutLongs
+import com.varlanv.klab.gpu.assets.AssetsAdapter
 import com.varlanv.klab.gpu.assets.PreparedModel
 import com.varlanv.klab.vector.intViewHandle
 import com.varlanv.klab.vector.shortViewHandle
@@ -49,14 +50,14 @@ private const val URI_ESCAPE_LENGTH = 3
 private const val HEX_RADIX = 16
 private const val HEX_DIGIT_BITS = 4
 
-class GltfLoader {
+class GltfLoader : AssetsAdapter {
     private val json = GltfJson()
     private var nodeMarks = MutInts(0)
     private var viewUses = MutInts(0)
     private var indexBounds = MutLongs(0)
     private val validationScratch = GltfValidationScratch()
 
-    fun load(source: Bytes): PreparedModel = load(source = source, resolver = null)
+    override fun load(source: Bytes): PreparedModel = load(source = source, resolver = null)
 
     fun load(path: Path): PreparedModel {
         val absolute = path.toAbsolutePath()
@@ -143,6 +144,7 @@ class GltfLoader {
                 uri != null && resolver != null -> {
                     resolver(decodeGltfUri(uri))
                 }
+
                 else -> {
                     error("External GLB buffers require a resource resolver")
                 }
