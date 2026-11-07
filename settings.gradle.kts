@@ -42,6 +42,8 @@ include(
         "libs:lang:mem",
         "libs:lang:bin",
         "libs:lang:collections",
+        "libs:lang:concurrency:concurrency-api",
+        "libs:lang:concurrency:concurrency-impl",
         "libs:platform:platform-api",
         "libs:platform:platform-impl",
         "libs:presentation:presentation-api",

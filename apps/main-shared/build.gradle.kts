@@ -22,6 +22,7 @@ dependencies {
     implementation(projects.libs.simulation.simulationImpl)
     implementation(projects.libs.presentation.presentationApi)
     implementation(projects.libs.presentation.presentationImpl)
+    implementation(projects.libs.lang.concurrency.concurrencyImpl)
 }
 
 tasks.processResources {

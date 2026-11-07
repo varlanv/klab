@@ -8,7 +8,8 @@ class Log(@PublishedApi internal val sink: Sink, val enabled: Boolean) {
     }
 
     companion object {
-        val noop: Log = Log(sink = Sink.noop, enabled = false)
+        val noop: Log get() = Log(sink = Sink.noop, enabled = false)
+        val debug: Log get() = Log(sink = Sink.stderr, enabled = true)
     }
 }
 
